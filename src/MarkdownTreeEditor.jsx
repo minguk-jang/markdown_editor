@@ -1,9 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronRight, ChevronDown, FileText, Download, Upload, Plus, Trash2, Clock, RotateCcw, Eye, Edit3, FolderOpen, Save, BookOpen, ChevronUp } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Download, Upload, Plus, Trash2, Clock, RotateCcw, Eye, Edit3, FolderOpen, Save, BookOpen, ChevronUp, FileCode } from 'lucide-react';
+
+// ====== 설정 (쉽게 변경 가능) ======
+const HEADING_START_LEVEL = 2; // 마크다운 헤딩 시작 레벨 (1 = H1(#), 2 = H2(##))
+// =====================================
 
 const MarkdownTreeEditor = () => {
   const [selectedNode, setSelectedNode] = useState(null);
-  const [expandedNodes, setExpandedNodes] = useState(new Set(['root', '1', '2', '3']));
+  const [expandedNodes, setExpandedNodes] = useState(new Set(['root', 'frontmatter', '1', '2', '3']));
   const [versions, setVersions] = useState([
     {
       id: 1,
@@ -38,16 +42,24 @@ const MarkdownTreeEditor = () => {
     content: '프로젝트 전체 개요입니다.',
     children: [
       {
+        id: 'frontmatter',
+        title: 'Frontmatter',
+        level: 0,
+        type: 'frontmatter',
+        content: 'title: README\nauthor: Your Name\ndate: 2024-01-01\ntags: [markdown, editor, react]',
+        children: []
+      },
+      {
         id: '1',
         title: '프로젝트 소개',
         level: 1,
-        content: '이 프로젝트는 **마크다운 파일**을 트리 구조로 보여주고 편집할 수 있는 웹 애플리케이션입니다.\n\n## 주요 특징\n\n- 직관적인 네비게이션\n- 쉬운 편집\n- 구조화된 문서 관리\n- 버전 관리',
+        content: '이 프로젝트는 **마크다운 파일**을 트리 구조로 보여주고 편집할 수 있는 웹 애플리케이션입니다.\n\n주요 특징:\n- 직관적인 네비게이션\n- 쉬운 편집\n- 구조화된 문서 관리\n- 버전 관리',
         children: [
           {
             id: '1-1',
             title: '주요 기능',
             level: 2,
-            content: '### 핵심 기능\n\n1. 트리 뷰로 문서 구조 파악\n2. 드래그앤드롭으로 재구성\n3. 실시간 마크다운 렌더링\n4. 버전 히스토리 및 복구\n\n**강조**: 모든 기능이 직관적입니다!',
+            content: '핵심 기능:\n\n1. 트리 뷰로 문서 구조 파악\n2. 드래그앤드롭으로 재구성\n3. 실시간 마크다운 렌더링\n4. 버전 히스토리 및 복구\n\n**강조**: 모든 기능이 직관적입니다!',
             children: []
           },
           {
@@ -63,14 +75,14 @@ const MarkdownTreeEditor = () => {
         id: '2',
         title: '설치 방법',
         level: 1,
-        content: '## 설치\n\n```bash\nnpm install\nnpm start\n```\n\n프로젝트를 클론한 후 위 명령어를 실행하세요.',
+        content: '설치:\n\n```bash\nnpm install\nnpm start\n```\n\n프로젝트를 클론한 후 위 명령어를 실행하세요.',
         children: []
       },
       {
         id: '3',
         title: '사용 가이드',
         level: 1,
-        content: '왼쪽 트리에서 원하는 섹션을 클릭하면 오른쪽에 내용이 표시됩니다.\n\n### 드래그앤드롭\n\n노드를 드래그하여 순서를 변경하거나 다른 부모 아래로 이동할 수 있습니다.',
+        content: '왼쪽 트리에서 원하는 섹션을 클릭하면 오른쪽에 내용이 표시됩니다.\n\n드래그앤드롭으로 노드를 드래그하여 순서를 변경하거나 다른 부모 아래로 이동할 수 있습니다.',
         children: [
           {
             id: '3-1',
@@ -272,7 +284,7 @@ const MarkdownTreeEditor = () => {
   };
 
   const deleteNode = (nodeId) => {
-    if (nodeId === 'root') return;
+    if (nodeId === 'root' || nodeId === 'frontmatter') return;
 
     const deleteFromNode = (node) => {
       if (node.children) {
@@ -293,7 +305,7 @@ const MarkdownTreeEditor = () => {
 
   // 드래그앤드롭 핸들러
   const handleDragStart = (e, node) => {
-    if (node.id === 'root') {
+    if (node.id === 'root' || node.type === 'frontmatter') {
       e.preventDefault();
       return;
     }
@@ -315,6 +327,9 @@ const MarkdownTreeEditor = () => {
   const handleDrop = (e, targetNode) => {
     e.preventDefault();
     if (!draggedNode || draggedNode.id === targetNode.id) return;
+
+    // frontmatter에는 드롭 불가
+    if (targetNode.type === 'frontmatter') return;
 
     // 자식 노드를 부모로 드롭하는 것 방지
     const isDescendant = (parent, childId) => {
@@ -395,12 +410,35 @@ const MarkdownTreeEditor = () => {
   // 마크다운으로 변환
   const convertToMarkdown = (node, depth = 0) => {
     let md = '';
-    if (node.id !== 'root') {
-      const heading = '#'.repeat(node.level);
-      md += `${heading} ${node.title}\n\n${node.content}\n\n`;
-    } else {
-      md += `${node.content}\n\n`;
+
+    // Frontmatter 처리
+    if (node.type === 'frontmatter') {
+      md += '---\n';
+      md += node.content;
+      md += '\n---\n\n';
+      return md;
     }
+
+    // Root 노드
+    if (node.id === 'root') {
+      // Root content가 있으면 추가
+      if (node.content && node.content.trim()) {
+        md += `${node.content}\n\n`;
+      }
+
+      // Children 처리
+      if (node.children) {
+        node.children.forEach(child => {
+          md += convertToMarkdown(child, depth + 1);
+        });
+      }
+      return md;
+    }
+
+    // 일반 노드: HEADING_START_LEVEL을 고려하여 헤딩 레벨 조정
+    const actualLevel = node.level + HEADING_START_LEVEL - 1;
+    const heading = '#'.repeat(actualLevel);
+    md += `${heading} ${node.title}\n\n${node.content}\n\n`;
 
     if (node.children) {
       node.children.forEach(child => {
@@ -448,12 +486,37 @@ const MarkdownTreeEditor = () => {
       children: []
     };
 
+    // Frontmatter 파싱
+    let lineIndex = 0;
+    let frontmatterContent = '';
+    if (lines[0] === '---') {
+      lineIndex = 1;
+      while (lineIndex < lines.length && lines[lineIndex] !== '---') {
+        frontmatterContent += lines[lineIndex] + '\n';
+        lineIndex++;
+      }
+      if (lineIndex < lines.length) {
+        lineIndex++; // '---' 건너뛰기
+        // Frontmatter 노드 추가
+        root.children.push({
+          id: 'frontmatter',
+          title: 'Frontmatter',
+          level: 0,
+          type: 'frontmatter',
+          content: frontmatterContent.trim(),
+          children: []
+        });
+      }
+    }
+
     let currentParent = root;
     let parentStack = [root];
     let currentContent = [];
     let nodeCounter = 0;
 
-    lines.forEach((line, index) => {
+    // 나머지 라인 파싱
+    for (let i = lineIndex; i < lines.length; i++) {
+      const line = lines[i];
       const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
 
       if (headingMatch) {
@@ -464,18 +527,21 @@ const MarkdownTreeEditor = () => {
           currentContent = [];
         }
 
-        const level = headingMatch[1].length;
+        const actualLevel = headingMatch[1].length;
         const title = headingMatch[2];
 
+        // HEADING_START_LEVEL을 고려하여 트리 레벨 계산
+        const treeLevel = actualLevel - HEADING_START_LEVEL + 1;
+
         // 적절한 부모 찾기
-        while (parentStack.length > level) {
+        while (parentStack.length > treeLevel) {
           parentStack.pop();
         }
 
         const newNode = {
           id: `node-${++nodeCounter}`,
           title,
-          level,
+          level: treeLevel,
           content: '',
           children: []
         };
@@ -492,7 +558,7 @@ const MarkdownTreeEditor = () => {
           currentContent.push(line);
         }
       }
-    });
+    }
 
     // 마지막 노드의 content 저장
     if (currentContent.length > 0 && parentStack.length > 1) {
@@ -598,12 +664,13 @@ const MarkdownTreeEditor = () => {
     const isExpanded = expandedNodes.has(node.id);
     const isSelected = selectedNode?.id === node.id;
     const isDragOver = dragOverNode?.id === node.id;
+    const isFrontmatter = node.type === 'frontmatter';
 
     return (
       <div key={node.id} className="select-none">
         <div
           className="flex items-center group"
-          draggable={node.id !== 'root'}
+          draggable={node.id !== 'root' && !isFrontmatter}
           onDragStart={(e) => handleDragStart(e, node)}
           onDragOver={(e) => handleDragOver(e, node)}
           onDragLeave={handleDragLeave}
@@ -612,7 +679,9 @@ const MarkdownTreeEditor = () => {
           <div
             className={`flex-1 flex items-center py-2 px-3 cursor-pointer rounded transition-all ${
               isSelected ? 'bg-blue-100 text-blue-700 font-medium' : 'hover:bg-gray-100'
-            } ${isDragOver ? 'border-2 border-blue-500 border-dashed' : ''}`}
+            } ${isDragOver ? 'border-2 border-blue-500 border-dashed' : ''} ${
+              isFrontmatter ? 'bg-purple-50 border border-purple-200' : ''
+            }`}
             onClick={() => setSelectedNode(node)}
           >
             {hasChildren ? (
@@ -632,14 +701,18 @@ const MarkdownTreeEditor = () => {
             ) : (
               <div className="w-6" />
             )}
-            <FileText size={14} className="mr-2 text-gray-500" />
+            {isFrontmatter ? (
+              <FileCode size={14} className="mr-2 text-purple-600" />
+            ) : (
+              <FileText size={14} className="mr-2 text-gray-500" />
+            )}
             <span className="text-sm truncate">{node.title}</span>
-            {node.level > 0 && (
-              <span className="ml-2 text-xs text-gray-400">H{node.level}</span>
+            {node.level > 0 && !isFrontmatter && (
+              <span className="ml-2 text-xs text-gray-400">H{node.level + HEADING_START_LEVEL - 1}</span>
             )}
           </div>
 
-          {node.id !== 'root' && (
+          {node.id !== 'root' && !isFrontmatter && (
             <div className="opacity-0 group-hover:opacity-100 flex items-center space-x-1 ml-2 transition-opacity">
               <button
                 onClick={() => addNode(node.id)}
@@ -765,7 +838,16 @@ const MarkdownTreeEditor = () => {
                 <div className="border-b border-gray-200 px-8 py-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-xs text-gray-500">
-                      {selectedNode.level > 0 ? `${'#'.repeat(selectedNode.level)} Heading ${selectedNode.level}` : '루트 문서'}
+                      {selectedNode.type === 'frontmatter' ? (
+                        <span className="flex items-center space-x-1">
+                          <FileCode size={14} className="text-purple-600" />
+                          <span className="text-purple-600 font-semibold">YAML Frontmatter</span>
+                        </span>
+                      ) : selectedNode.level > 0 ? (
+                        `${'#'.repeat(selectedNode.level + HEADING_START_LEVEL - 1)} Heading ${selectedNode.level + HEADING_START_LEVEL - 1}`
+                      ) : (
+                        '루트 문서'
+                      )}
                     </div>
                     <div className="flex items-center space-x-2">
                       <button
@@ -777,7 +859,7 @@ const MarkdownTreeEditor = () => {
                         {isPreviewMode ? <Eye size={14} /> : <Edit3 size={14} />}
                         <span>{isPreviewMode ? '미리보기' : '편집'}</span>
                       </button>
-                      {selectedNode.id !== 'root' && (
+                      {selectedNode.id !== 'root' && selectedNode.type !== 'frontmatter' && (
                         <>
                           <button
                             onClick={() => addNode(selectedNode.id)}
@@ -795,35 +877,65 @@ const MarkdownTreeEditor = () => {
                       )}
                     </div>
                   </div>
-                  <input
-                    type="text"
-                    value={selectedNode.title}
-                    onChange={(e) => {
-                      const newTitle = e.target.value;
-                      setSelectedNode({ ...selectedNode, title: newTitle });
-                      updateNodeTitle(selectedNode.id, newTitle);
-                    }}
-                    className="text-2xl font-bold text-gray-800 w-full border-none focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1"
-                    placeholder="제목을 입력하세요"
-                  />
+                  {selectedNode.type !== 'frontmatter' && (
+                    <input
+                      type="text"
+                      value={selectedNode.title}
+                      onChange={(e) => {
+                        const newTitle = e.target.value;
+                        setSelectedNode({ ...selectedNode, title: newTitle });
+                        updateNodeTitle(selectedNode.id, newTitle);
+                      }}
+                      className="text-2xl font-bold text-gray-800 w-full border-none focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1"
+                      placeholder="제목을 입력하세요"
+                    />
+                  )}
+                  {selectedNode.type === 'frontmatter' && (
+                    <div className="text-xl font-bold text-purple-700 px-2 py-1">
+                      문서 메타데이터 (YAML)
+                    </div>
+                  )}
                 </div>
 
                 {/* Content Body */}
                 <div className="flex-1 overflow-y-auto px-8 py-6">
                   {isPreviewMode ? (
-                    <div className="prose prose-sm max-w-none">
-                      {renderMarkdown(selectedNode.content)}
-                    </div>
+                    selectedNode.type === 'frontmatter' ? (
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                        <div className="flex items-center space-x-2 mb-4 text-purple-700">
+                          <FileCode size={18} />
+                          <span className="font-semibold">YAML Frontmatter</span>
+                        </div>
+                        <pre className="bg-white p-4 rounded border border-purple-200 text-sm font-mono text-gray-800 overflow-x-auto">
+{selectedNode.content}
+                        </pre>
+                        <div className="mt-4 text-xs text-purple-600">
+                          💡 이 메타데이터는 마크다운 파일의 맨 앞에 위치하며, 문서의 속성을 정의합니다.
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="prose prose-sm max-w-none">
+                        {renderMarkdown(selectedNode.content)}
+                      </div>
+                    )
                   ) : (
                     <textarea
-                      className="w-full h-full p-4 border border-gray-300 rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                      className={`w-full h-full p-4 border rounded text-sm resize-none focus:outline-none focus:ring-2 font-mono ${
+                        selectedNode.type === 'frontmatter'
+                          ? 'border-purple-300 focus:ring-purple-500 bg-purple-50'
+                          : 'border-gray-300 focus:ring-blue-500'
+                      }`}
                       value={selectedNode.content}
                       onChange={(e) => {
                         const newContent = e.target.value;
                         setSelectedNode({ ...selectedNode, content: newContent });
                         updateNodeContent(selectedNode.id, newContent);
                       }}
-                      placeholder="마크다운 내용을 입력하세요..."
+                      placeholder={
+                        selectedNode.type === 'frontmatter'
+                          ? 'YAML 형식으로 메타데이터를 입력하세요...\n예:\ntitle: 문서 제목\nauthor: 작성자\ndate: 2024-01-01'
+                          : '마크다운 내용을 입력하세요...'
+                      }
                     />
                   )}
                 </div>
