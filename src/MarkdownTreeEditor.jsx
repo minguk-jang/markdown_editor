@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { ChevronRight, ChevronDown, FileText, Download, Upload, Plus, Trash2, Clock, RotateCcw, Eye, Edit3 } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ChevronRight, ChevronDown, FileText, Download, Upload, Plus, Trash2, Clock, RotateCcw, Eye, Edit3, FolderOpen, Save } from 'lucide-react';
 
 const MarkdownTreeEditor = () => {
   const [selectedNode, setSelectedNode] = useState(null);
@@ -9,13 +9,15 @@ const MarkdownTreeEditor = () => {
       id: 1,
       timestamp: new Date().toISOString(),
       description: '초기 버전',
-      data: null
+      filePath: null
     }
   ]);
   const [showVersions, setShowVersions] = useState(false);
   const [draggedNode, setDraggedNode] = useState(null);
   const [dragOverNode, setDragOverNode] = useState(null);
   const [isPreviewMode, setIsPreviewMode] = useState(true);
+  const [directoryHandle, setDirectoryHandle] = useState(null);
+  const [currentDocument, setCurrentDocument] = useState('README');
   const fileInputRef = useRef(null);
 
   // 예시 마크다운 데이터 구조
@@ -72,6 +74,111 @@ const MarkdownTreeEditor = () => {
     ]
   });
 
+  // 폴더 선택
+  const selectFolder = async () => {
+    try {
+      const handle = await window.showDirectoryPicker({
+        mode: 'readwrite'
+      });
+      setDirectoryHandle(handle);
+
+      // 기존 metadata.json 로드 시도
+      try {
+        const dataDir = await handle.getDirectoryHandle('data');
+        const metaFile = await dataDir.getFileHandle('metadata.json');
+        const file = await metaFile.getFile();
+        const text = await file.text();
+        const metadata = JSON.parse(text);
+
+        setCurrentDocument(metadata.documentName);
+        setVersions(metadata.versions);
+
+        // 최신 버전 로드
+        if (metadata.versions.length > 0) {
+          const latestVersion = metadata.versions[metadata.versions.length - 1];
+          await loadVersion(latestVersion, dataDir);
+        }
+      } catch (e) {
+        // metadata.json이 없으면 새로 시작
+        console.log('새 문서 시작');
+      }
+    } catch (err) {
+      console.error('폴더 선택 취소 또는 에러:', err);
+    }
+  };
+
+  // 버전 로드
+  const loadVersion = async (version, dataDir) => {
+    try {
+      if (!dataDir && directoryHandle) {
+        dataDir = await directoryHandle.getDirectoryHandle('data');
+      }
+
+      const fileName = version.filePath.split('/').pop();
+      const fileHandle = await dataDir.getFileHandle(fileName);
+      const file = await fileHandle.getFile();
+      const markdown = await file.text();
+
+      parseMarkdown(markdown, currentDocument + '.md');
+    } catch (err) {
+      console.error('버전 로드 실패:', err);
+    }
+  };
+
+  // 파일 시스템에 저장
+  const saveToFileSystem = async (description) => {
+    if (!directoryHandle) {
+      alert('먼저 폴더를 선택해주세요!');
+      return;
+    }
+
+    try {
+      // data 폴더 생성/가져오기
+      const dataDir = await directoryHandle.getDirectoryHandle('data', { create: true });
+
+      // 마크다운 변환
+      const markdown = convertToMarkdown(data);
+
+      // 새 버전 ID
+      const newVersionId = versions.length + 1;
+      const fileName = `${currentDocument}-v${newVersionId}.md`;
+
+      // 마크다운 파일 저장
+      const fileHandle = await dataDir.getFileHandle(fileName, { create: true });
+      const writable = await fileHandle.createWritable();
+      await writable.write(markdown);
+      await writable.close();
+
+      // 버전 정보 업데이트
+      const newVersion = {
+        id: newVersionId,
+        timestamp: new Date().toISOString(),
+        description: description || '버전 ' + newVersionId,
+        filePath: `data/${fileName}`
+      };
+
+      const newVersions = [...versions, newVersion];
+      setVersions(newVersions);
+
+      // metadata.json 저장
+      const metadata = {
+        documentName: currentDocument,
+        currentVersion: newVersionId,
+        versions: newVersions
+      };
+
+      const metaHandle = await dataDir.getFileHandle('metadata.json', { create: true });
+      const metaWritable = await metaHandle.createWritable();
+      await metaWritable.write(JSON.stringify(metadata, null, 2));
+      await metaWritable.close();
+
+      alert(`버전 ${newVersionId} 저장 완료!`);
+    } catch (err) {
+      console.error('저장 실패:', err);
+      alert('저장 실패: ' + err.message);
+    }
+  };
+
   const toggleNode = (nodeId) => {
     const newExpanded = new Set(expandedNodes);
     if (newExpanded.has(nodeId)) {
@@ -106,7 +213,6 @@ const MarkdownTreeEditor = () => {
 
     const newData = updateNode(data);
     setData(newData);
-    saveVersion('내용 수정: ' + nodeId);
   };
 
   const updateNodeTitle = (nodeId, newTitle) => {
@@ -122,7 +228,6 @@ const MarkdownTreeEditor = () => {
 
     const newData = updateNode(data);
     setData(newData);
-    saveVersion('제목 수정: ' + nodeId);
   };
 
   const addNode = (parentId) => {
@@ -154,7 +259,6 @@ const MarkdownTreeEditor = () => {
     const newData = updateNode(data);
     setData(newData);
     setExpandedNodes(new Set([...expandedNodes, parentId]));
-    saveVersion('노드 추가: ' + newNode.title);
   };
 
   const deleteNode = (nodeId) => {
@@ -175,7 +279,6 @@ const MarkdownTreeEditor = () => {
     const newData = deleteFromNode(data);
     setData(newData);
     if (selectedNode?.id === nodeId) setSelectedNode(null);
-    saveVersion('노드 삭제');
   };
 
   // 드래그앤드롭 핸들러
@@ -260,48 +363,46 @@ const MarkdownTreeEditor = () => {
     setDraggedNode(null);
     setDragOverNode(null);
     setExpandedNodes(new Set([...expandedNodes, targetNode.id]));
-    saveVersion('노드 이동: ' + draggedNode.title);
   };
 
-  const saveVersion = (description) => {
-    const newVersion = {
-      id: versions.length + 1,
-      timestamp: new Date().toISOString(),
-      description,
-      data: JSON.parse(JSON.stringify(data))
-    };
-    setVersions([...versions, newVersion]);
-  };
-
-  const restoreVersion = (version) => {
-    if (version.data) {
-      setData(version.data);
-      setSelectedNode(null);
-      saveVersion('버전 복구: ' + version.description);
-      setShowVersions(false);
+  const restoreVersion = async (version) => {
+    if (!directoryHandle) {
+      alert('폴더가 선택되지 않았습니다!');
+      return;
     }
+
+    try {
+      const dataDir = await directoryHandle.getDirectoryHandle('data');
+      await loadVersion(version, dataDir);
+      setShowVersions(false);
+      alert(`버전 ${version.id} 복구 완료!`);
+    } catch (err) {
+      console.error('버전 복구 실패:', err);
+      alert('버전 복구 실패: ' + err.message);
+    }
+  };
+
+  // 마크다운으로 변환
+  const convertToMarkdown = (node, depth = 0) => {
+    let md = '';
+    if (node.id !== 'root') {
+      const heading = '#'.repeat(node.level);
+      md += `${heading} ${node.title}\n\n${node.content}\n\n`;
+    } else {
+      md += `${node.content}\n\n`;
+    }
+
+    if (node.children) {
+      node.children.forEach(child => {
+        md += convertToMarkdown(child, depth + 1);
+      });
+    }
+
+    return md;
   };
 
   // 파일 다운로드
   const downloadFile = () => {
-    const convertToMarkdown = (node, depth = 0) => {
-      let md = '';
-      if (node.id !== 'root') {
-        const heading = '#'.repeat(node.level);
-        md += `${heading} ${node.title}\n\n${node.content}\n\n`;
-      } else {
-        md += `${node.content}\n\n`;
-      }
-
-      if (node.children) {
-        node.children.forEach(child => {
-          md += convertToMarkdown(child, depth + 1);
-        });
-      }
-
-      return md;
-    };
-
     const markdown = convertToMarkdown(data);
     const blob = new Blob([markdown], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
@@ -392,12 +493,6 @@ const MarkdownTreeEditor = () => {
     root.content = root.content.trim();
     setData(root);
     setSelectedNode(null);
-    setVersions([{
-      id: 1,
-      timestamp: new Date().toISOString(),
-      description: '파일 업로드: ' + filename,
-      data: root
-    }]);
 
     // 모든 노드 확장
     const getAllIds = (node) => {
@@ -571,6 +666,15 @@ const MarkdownTreeEditor = () => {
             <h1 className="text-xl font-bold text-gray-800">Markdown Tree Editor</h1>
 
             <div className="flex items-center space-x-2">
+              <button
+                onClick={selectFolder}
+                className="flex items-center space-x-2 px-3 py-1.5 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors text-sm"
+                title="작업 폴더 선택"
+              >
+                <FolderOpen size={16} />
+                <span>폴더 선택</span>
+              </button>
+
               <input
                 type="file"
                 ref={fileInputRef}
@@ -583,15 +687,27 @@ const MarkdownTreeEditor = () => {
                 className="flex items-center space-x-2 px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm"
               >
                 <Upload size={16} />
-                <span>열기</span>
+                <span>가져오기</span>
               </button>
+
+              <button
+                onClick={() => saveToFileSystem('수동 저장')}
+                className="flex items-center space-x-2 px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-sm"
+                disabled={!directoryHandle}
+                title={!directoryHandle ? '먼저 폴더를 선택하세요' : ''}
+              >
+                <Save size={16} />
+                <span>저장</span>
+              </button>
+
               <button
                 onClick={downloadFile}
                 className="flex items-center space-x-2 px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm"
               >
                 <Download size={16} />
-                <span>저장</span>
+                <span>내보내기</span>
               </button>
+
               <button
                 onClick={() => setShowVersions(!showVersions)}
                 className="flex items-center space-x-2 px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm"
@@ -603,7 +719,7 @@ const MarkdownTreeEditor = () => {
           </div>
 
           <div className="text-sm text-gray-500">
-            드래그앤드롭으로 노드를 이동할 수 있습니다
+            {directoryHandle ? `📁 ${directoryHandle.name}` : '폴더를 선택하세요'}
           </div>
         </div>
       </div>
@@ -743,8 +859,13 @@ const MarkdownTreeEditor = () => {
                         <div className="text-xs text-gray-500 mt-1">
                           {new Date(version.timestamp).toLocaleString('ko-KR')}
                         </div>
+                        {version.filePath && (
+                          <div className="text-xs text-gray-400 mt-1">
+                            📁 {version.filePath}
+                          </div>
+                        )}
                       </div>
-                      {!isLatest && version.data && (
+                      {!isLatest && version.filePath && (
                         <button
                           onClick={() => restoreVersion(version)}
                           className="flex items-center space-x-1 px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
