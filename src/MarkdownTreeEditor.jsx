@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronRight, ChevronDown, FileText, Download, Upload, Plus, Trash2, Clock, RotateCcw, Eye, Edit3, FolderOpen, Save } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Download, Upload, Plus, Trash2, Clock, RotateCcw, Eye, Edit3, FolderOpen, Save, BookOpen, ChevronUp } from 'lucide-react';
 
 const MarkdownTreeEditor = () => {
   const [selectedNode, setSelectedNode] = useState(null);
@@ -18,7 +18,17 @@ const MarkdownTreeEditor = () => {
   const [isPreviewMode, setIsPreviewMode] = useState(true);
   const [directoryHandle, setDirectoryHandle] = useState(null);
   const [currentDocument, setCurrentDocument] = useState('README');
+  const [showGuide, setShowGuide] = useState(true);
+  const [guideContent, setGuideContent] = useState('');
   const fileInputRef = useRef(null);
+
+  // example.md 로드
+  useEffect(() => {
+    fetch('/example.md')
+      .then(response => response.text())
+      .then(text => setGuideContent(text))
+      .catch(err => console.error('가이드 파일 로드 실패:', err));
+  }, []);
 
   // 예시 마크다운 데이터 구조
   const [data, setData] = useState({
@@ -746,85 +756,119 @@ const MarkdownTreeEditor = () => {
         </div>
 
         {/* Right Content Area */}
-        <div className="flex-1 flex flex-col bg-white">
-          {selectedNode ? (
-            <>
-              {/* Content Header */}
-              <div className="border-b border-gray-200 px-8 py-4">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs text-gray-500">
-                    {selectedNode.level > 0 ? `${'#'.repeat(selectedNode.level)} Heading ${selectedNode.level}` : '루트 문서'}
+        <div className="flex-1 flex flex-col bg-white overflow-hidden">
+          {/* Main Editor Area */}
+          <div className={`flex flex-col ${showGuide ? 'h-3/5' : 'flex-1'} transition-all duration-300`}>
+            {selectedNode ? (
+              <>
+                {/* Content Header */}
+                <div className="border-b border-gray-200 px-8 py-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs text-gray-500">
+                      {selectedNode.level > 0 ? `${'#'.repeat(selectedNode.level)} Heading ${selectedNode.level}` : '루트 문서'}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setIsPreviewMode(!isPreviewMode)}
+                        className={`flex items-center space-x-2 px-3 py-1.5 rounded transition-colors text-sm ${
+                          isPreviewMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
+                        }`}
+                      >
+                        {isPreviewMode ? <Eye size={14} /> : <Edit3 size={14} />}
+                        <span>{isPreviewMode ? '미리보기' : '편집'}</span>
+                      </button>
+                      {selectedNode.id !== 'root' && (
+                        <>
+                          <button
+                            onClick={() => addNode(selectedNode.id)}
+                            className="px-2 py-1.5 bg-green-500 text-white rounded text-xs hover:bg-green-600"
+                          >
+                            하위 추가
+                          </button>
+                          <button
+                            onClick={() => deleteNode(selectedNode.id)}
+                            className="px-2 py-1.5 bg-red-500 text-white rounded text-xs hover:bg-red-600"
+                          >
+                            삭제
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => setIsPreviewMode(!isPreviewMode)}
-                      className={`flex items-center space-x-2 px-3 py-1.5 rounded transition-colors text-sm ${
-                        isPreviewMode ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
-                      }`}
-                    >
-                      {isPreviewMode ? <Eye size={14} /> : <Edit3 size={14} />}
-                      <span>{isPreviewMode ? '미리보기' : '편집'}</span>
-                    </button>
-                    {selectedNode.id !== 'root' && (
-                      <>
-                        <button
-                          onClick={() => addNode(selectedNode.id)}
-                          className="px-2 py-1.5 bg-green-500 text-white rounded text-xs hover:bg-green-600"
-                        >
-                          하위 추가
-                        </button>
-                        <button
-                          onClick={() => deleteNode(selectedNode.id)}
-                          className="px-2 py-1.5 bg-red-500 text-white rounded text-xs hover:bg-red-600"
-                        >
-                          삭제
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <input
-                  type="text"
-                  value={selectedNode.title}
-                  onChange={(e) => {
-                    const newTitle = e.target.value;
-                    setSelectedNode({ ...selectedNode, title: newTitle });
-                    updateNodeTitle(selectedNode.id, newTitle);
-                  }}
-                  className="text-2xl font-bold text-gray-800 w-full border-none focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1"
-                  placeholder="제목을 입력하세요"
-                />
-              </div>
-
-              {/* Content Body */}
-              <div className="flex-1 overflow-y-auto px-8 py-6">
-                {isPreviewMode ? (
-                  <div className="prose prose-sm max-w-none">
-                    {renderMarkdown(selectedNode.content)}
-                  </div>
-                ) : (
-                  <textarea
-                    className="w-full h-full p-4 border border-gray-300 rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                    value={selectedNode.content}
+                  <input
+                    type="text"
+                    value={selectedNode.title}
                     onChange={(e) => {
-                      const newContent = e.target.value;
-                      setSelectedNode({ ...selectedNode, content: newContent });
-                      updateNodeContent(selectedNode.id, newContent);
+                      const newTitle = e.target.value;
+                      setSelectedNode({ ...selectedNode, title: newTitle });
+                      updateNodeTitle(selectedNode.id, newTitle);
                     }}
-                    placeholder="마크다운 내용을 입력하세요..."
+                    className="text-2xl font-bold text-gray-800 w-full border-none focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1"
+                    placeholder="제목을 입력하세요"
                   />
-                )}
+                </div>
+
+                {/* Content Body */}
+                <div className="flex-1 overflow-y-auto px-8 py-6">
+                  {isPreviewMode ? (
+                    <div className="prose prose-sm max-w-none">
+                      {renderMarkdown(selectedNode.content)}
+                    </div>
+                  ) : (
+                    <textarea
+                      className="w-full h-full p-4 border border-gray-300 rounded text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                      value={selectedNode.content}
+                      onChange={(e) => {
+                        const newContent = e.target.value;
+                        setSelectedNode({ ...selectedNode, content: newContent });
+                        updateNodeContent(selectedNode.id, newContent);
+                      }}
+                      placeholder="마크다운 내용을 입력하세요..."
+                    />
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-gray-400">
+                <div className="text-center">
+                  <FileText size={48} className="mx-auto mb-4 opacity-50" />
+                  <p className="text-lg mb-2">왼쪽 트리에서 섹션을 선택하세요</p>
+                  <p className="text-sm">드래그앤드롭으로 노드를 재배치할 수 있습니다</p>
+                </div>
               </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-400">
-              <div className="text-center">
-                <FileText size={48} className="mx-auto mb-4 opacity-50" />
-                <p className="text-lg mb-2">왼쪽 트리에서 섹션을 선택하세요</p>
-                <p className="text-sm">드래그앤드롭으로 노드를 재배치할 수 있습니다</p>
+            )}
+          </div>
+
+          {/* Guide Section */}
+          <div className={`border-t-2 border-gray-300 bg-gradient-to-b from-blue-50 to-gray-50 flex flex-col ${showGuide ? 'h-2/5' : 'h-auto'} transition-all duration-300`}>
+            {/* Guide Header */}
+            <div
+              className="flex items-center justify-between px-6 py-3 bg-blue-100 border-b border-blue-200 cursor-pointer hover:bg-blue-150"
+              onClick={() => setShowGuide(!showGuide)}
+            >
+              <div className="flex items-center space-x-2">
+                <BookOpen size={18} className="text-blue-600" />
+                <h3 className="font-semibold text-blue-900">📖 마크다운 사용 가이드</h3>
+                <span className="text-xs text-blue-600 bg-blue-200 px-2 py-0.5 rounded">참고용</span>
               </div>
+              <button className="text-blue-600 hover:text-blue-800 transition-colors">
+                {showGuide ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+              </button>
             </div>
-          )}
+
+            {/* Guide Content */}
+            {showGuide && (
+              <div className="flex-1 overflow-y-auto px-8 py-6">
+                <div className="prose prose-sm max-w-none bg-white p-6 rounded-lg shadow-sm">
+                  {guideContent ? renderMarkdown(guideContent) : (
+                    <div className="text-center text-gray-400">
+                      <p>가이드 파일을 로드하는 중...</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
