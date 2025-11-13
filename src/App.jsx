@@ -1,9 +1,9 @@
-import MarkdownTreeEditor from './MarkdownTreeEditor'
+import LangfuseMarkdownEditor from './examples/LangfuseMarkdownEditor'
 
 function App() {
   return (
     <div className="App">
-      <MarkdownTreeEditor />
+      <LangfuseMarkdownEditor />
     </div>
   )
 }
