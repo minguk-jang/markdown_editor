@@ -966,7 +966,7 @@ const MarkdownTreeEditor = () => {
                 title={!currentPromptName ? '먼저 Langfuse 프롬프트를 불러오세요' : 'Langfuse 버전 관리'}
               >
                 <Clock size={16} />
-                <span>버전</span>
+                <span>버전 ({availableVersions.length})</span>
               </button>
             </div>
           </div>
