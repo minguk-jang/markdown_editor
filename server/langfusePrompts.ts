@@ -133,6 +133,7 @@ export async function savePrompt(
     const requestBody = {
       name,
       prompt: request.content,
+      isActive: true,
       labels: request.labels || ['production', 'latest'],
     };
 
