@@ -127,8 +127,16 @@ export async function savePrompt(
 
     console.log(`💾 프롬프트 저장 시작: ${name}`);
 
-    // POST 요청으로 프롬프트 생성/업데이트
-    const url = new URL(`${baseUrl}/api/public/prompts`);
+    // POST 요청으로 프롬프트 생성/업데이트 (v2 API 사용)
+    const url = new URL(`${baseUrl}/api/public/v2/prompts`);
+
+    const requestBody = {
+      name,
+      prompt: request.content,
+      labels: request.labels || ['production', 'latest'],
+    };
+
+    console.log('📤 저장 요청 body:', JSON.stringify(requestBody, null, 2));
 
     const response = await fetch(url.toString(), {
       method: 'POST',
@@ -136,15 +144,7 @@ export async function savePrompt(
         Authorization: `Basic ${auth}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        name,
-        prompt: request.content,
-        labels: request.labels || ['production', 'latest'],
-        config: {
-          commitMessage: request.commitMessage || '마크다운 파일 업데이트',
-          timestamp: new Date().toISOString(),
-        },
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
