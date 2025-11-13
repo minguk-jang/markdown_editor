@@ -32,6 +32,9 @@ const MarkdownTreeEditor = () => {
   const [langfusePrompts, setLangfusePrompts] = useState([]);
   const [langfuseLoading, setLangfuseLoading] = useState(false);
   const [currentPromptName, setCurrentPromptName] = useState(null);
+  const [currentPromptVersion, setCurrentPromptVersion] = useState(null);
+  const [availableVersions, setAvailableVersions] = useState([]);
+  const [showVersionsDropdown, setShowVersionsDropdown] = useState(false);
 
   // example.md 로드
   useEffect(() => {
@@ -128,10 +131,33 @@ const MarkdownTreeEditor = () => {
     }
   };
 
-  // Langfuse에서 프롬프트 로드
-  const loadFromLangfuse = async (promptName) => {
+  // 버전 목록 가져오기
+  const loadVersions = async (promptName) => {
     try {
-      const response = await fetch(`${API_URL}/api/prompts/${encodeURIComponent(promptName)}`);
+      const response = await fetch(`${API_URL}/api/prompts/${encodeURIComponent(promptName)}/versions`);
+      if (!response.ok) {
+        throw new Error('버전 목록 로드 실패');
+      }
+      const result = await response.json();
+      if (result.success && result.data) {
+        setAvailableVersions(result.data);
+        return result.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('버전 목록 로드 실패:', error);
+      return [];
+    }
+  };
+
+  // Langfuse에서 프롬프트 로드 (특정 버전)
+  const loadFromLangfuse = async (promptName, version = null) => {
+    try {
+      const url = version
+        ? `${API_URL}/api/prompts/${encodeURIComponent(promptName)}?version=${version}`
+        : `${API_URL}/api/prompts/${encodeURIComponent(promptName)}`;
+
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('프롬프트 로드 실패');
       }
@@ -141,14 +167,19 @@ const MarkdownTreeEditor = () => {
         // 마크다운 파싱
         parseMarkdown(prompt.content, `${promptName}.md`);
         setCurrentPromptName(promptName);
+        setCurrentPromptVersion(prompt.version);
         setShowLangfuseModal(false);
+
+        // 버전 목록 로드
+        await loadVersions(promptName);
+
         alert(`✅ "${promptName}" 로드 완료! (버전 ${prompt.version})`);
       } else {
         alert(`오류: ${result.error}`);
       }
     } catch (error) {
-      console.error('프롬프트 로드 실패:', error);
-      alert('프롬프트를 로드할 수 없습니다.');
+      console.error('프롬프트 가져오기 실패:', error);
+      alert(`프롬프트 가져오기 실패: ${error.message}`);
     }
   };
 
@@ -182,7 +213,7 @@ const MarkdownTreeEditor = () => {
         body: JSON.stringify({
           content: markdown,
           commitMessage: commitMessage || '마크다운 파일 업데이트',
-          labels: ['latest']
+          labels: ['production', 'latest']
         })
       });
 
@@ -193,6 +224,11 @@ const MarkdownTreeEditor = () => {
       const result = await response.json();
       if (result.success && result.data) {
         setCurrentPromptName(promptName);
+        setCurrentPromptVersion(result.data.version);
+
+        // 버전 목록 새로고침
+        await loadVersions(promptName);
+
         alert(`✅ Langfuse에 저장 완료!\n프롬프트: ${promptName}\n버전: ${result.data.version}`);
       } else {
         alert(`오류: ${result.error}`);
@@ -890,8 +926,61 @@ const MarkdownTreeEditor = () => {
             </div>
           </div>
 
-          <div className="text-sm text-gray-500">
-            {currentPromptName ? `☁️ Langfuse: ${currentPromptName}` : directoryHandle ? `📁 ${directoryHandle.name}` : '파일을 불러오세요'}
+          <div className="flex items-center space-x-2">
+            {currentPromptName ? (
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-500">☁️ Langfuse: {currentPromptName}</span>
+                {currentPromptVersion && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowVersionsDropdown(!showVersionsDropdown)}
+                      className="flex items-center space-x-1 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 transition-colors"
+                    >
+                      <span>v{currentPromptVersion}</span>
+                      <ChevronDown size={12} />
+                    </button>
+                    {showVersionsDropdown && availableVersions.length > 0 && (
+                      <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 w-64 max-h-96 overflow-y-auto">
+                        <div className="p-2 border-b border-gray-200 bg-gray-50">
+                          <div className="text-xs font-semibold text-gray-700">버전 선택</div>
+                        </div>
+                        {availableVersions.map((v) => (
+                          <button
+                            key={v.version}
+                            onClick={() => {
+                              loadFromLangfuse(currentPromptName, v.version);
+                              setShowVersionsDropdown(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-100 ${
+                              v.version === currentPromptVersion ? 'bg-blue-50 font-semibold' : ''
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm text-gray-800">v{v.version}</span>
+                              {v.version === currentPromptVersion && (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">현재</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {new Date(v.timestamp).toLocaleString('ko-KR')}
+                            </div>
+                            {v.commitMessage && (
+                              <div className="text-xs text-gray-400 mt-1 truncate">
+                                {v.commitMessage}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : directoryHandle ? (
+              <span className="text-sm text-gray-500">📁 {directoryHandle.name}</span>
+            ) : (
+              <span className="text-sm text-gray-500">파일을 불러오세요</span>
+            )}
           </div>
         </div>
       </div>

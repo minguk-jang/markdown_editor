@@ -51,17 +51,19 @@ export async function getPrompt(
     // Basic Auth 인코딩
     const auth = Buffer.from(`${publicKey}:${secretKey}`).toString('base64');
 
-    // URL 생성 (query parameter로 name 전달)
-    const url = new URL(`${baseUrl}/api/public/v2/prompts`);
-    url.searchParams.append('name', name);
-    if (label) {
-      url.searchParams.append('label', label);
-    }
+    // URL 생성 (path parameter로 name 전달)
+    // 기본 label은 'production' 사용
+    const effectiveLabel = label || 'production';
+    const url = new URL(`${baseUrl}/api/public/v2/prompts/${encodeURIComponent(name)}`);
+
     if (version) {
       url.searchParams.append('version', version.toString());
+    } else {
+      // version이 없으면 label로 조회
+      url.searchParams.append('label', effectiveLabel);
     }
 
-    console.log(`📥 프롬프트 가져오기: ${name} (label: ${label || 'none'}, version: ${version || 'latest'})`);
+    console.log(`📥 프롬프트 가져오기: ${name} (label: ${effectiveLabel}, version: ${version || 'latest'})`);
 
     const response = await fetch(url.toString(), {
       method: 'GET',
@@ -75,12 +77,7 @@ export async function getPrompt(
       throw new Error(`API 요청 실패: ${response.status} ${response.statusText}`);
     }
 
-    const responseData = await response.json();
-    // Langfuse API는 { data: [...] } 형식으로 반환할 수 있음
-    const promptData = responseData.data || responseData;
-
-    // 배열로 반환되는 경우 첫 번째 항목 선택
-    const prompt = Array.isArray(promptData) ? promptData[0] : promptData;
+    const prompt = await response.json();
 
     if (!prompt) {
       throw new Error(`프롬프트 '${name}'을 찾을 수 없습니다.`);
