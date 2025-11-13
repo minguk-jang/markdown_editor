@@ -6,6 +6,8 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import {
   getPrompt,
   savePrompt,
@@ -18,9 +20,38 @@ import {
 } from './langfusePrompts';
 import type { PromptSaveRequest, ApiResponse } from '../src/types/langfuse';
 
-// 환경 변수 로드
-dotenv.config({ path: '.env.local' });
-dotenv.config();
+// __dirname 대체 (ES modules에서)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// 환경 변수 로드 (여러 파일 시도)
+const envPaths = [
+  path.resolve(__dirname, '../.env.local'),
+  path.resolve(__dirname, '../.env'),
+  path.resolve(process.cwd(), '.env.local'),
+  path.resolve(process.cwd(), '.env'),
+];
+
+let envLoaded = false;
+for (const envPath of envPaths) {
+  const result = dotenv.config({ path: envPath });
+  if (!result.error) {
+    console.log(`✅ 환경 변수 로드 성공: ${envPath}`);
+    envLoaded = true;
+    break;
+  }
+}
+
+if (!envLoaded) {
+  console.warn('⚠️  .env 파일을 찾을 수 없습니다. 환경 변수를 직접 설정하세요.');
+}
+
+// 환경 변수 확인 (디버깅용)
+console.log('🔍 환경 변수 확인:');
+console.log(`  LANGFUSE_PUBLIC_KEY: ${process.env.LANGFUSE_PUBLIC_KEY ? '설정됨 ✓' : '없음 ✗'}`);
+console.log(`  LANGFUSE_SECRET_KEY: ${process.env.LANGFUSE_SECRET_KEY ? '설정됨 ✓' : '없음 ✗'}`);
+console.log(`  LANGFUSE_HOST: ${process.env.LANGFUSE_HOST || '기본값 사용'}`);
+console.log(`  API_PORT: ${process.env.API_PORT || 3001}`);
 
 const app = express();
 const PORT = process.env.API_PORT || 3001;
