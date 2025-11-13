@@ -1142,64 +1142,102 @@ const MarkdownTreeEditor = () => {
                       </div>
                     )
                   ) : (
-                    <div className="h-full flex flex-col space-y-4">
-                      {/* 현재 노드의 편집 가능한 content */}
-                      <div className="flex-1 flex flex-col min-h-0">
-                        <textarea
-                          className={`w-full flex-1 p-4 border rounded text-sm resize-none focus:outline-none focus:ring-2 font-mono ${
-                            selectedNode.type === 'frontmatter'
-                              ? 'border-purple-300 focus:ring-purple-500 bg-purple-50'
-                              : 'border-gray-300 focus:ring-blue-500'
-                          }`}
-                          value={selectedNode.content}
-                          onChange={(e) => {
-                            const newContent = e.target.value;
-                            setSelectedNode({ ...selectedNode, content: newContent });
-                            updateNodeContent(selectedNode.id, newContent);
-                          }}
-                          placeholder={
-                            selectedNode.type === 'frontmatter'
-                              ? 'YAML 형식으로 메타데이터를 입력하세요...\n예:\ntitle: 문서 제목\nauthor: 작성자\ndate: 2024-01-01'
-                              : '마크다운 내용을 입력하세요...'
-                          }
-                        />
-                      </div>
+                    (() => {
+                      const childNodes = collectChildNodes(selectedNode);
 
-                      {/* 하위 노드들의 read-only content */}
-                      {(() => {
-                        const childNodes = collectChildNodes(selectedNode);
-                        if (childNodes.length === 0) return null;
-
+                      if (childNodes.length === 0) {
+                        // 하위 노드가 없으면 전체를 편집 가능한 영역으로
                         return (
-                          <div className="flex-shrink-0 space-y-4 pb-4">
-                            {childNodes.map((child) => (
-                              <div key={child.id} className="relative">
-                                <div className="flex items-center justify-between mb-2 px-1">
-                                  <div className="text-xs font-semibold text-gray-700">
-                                    {child.title}
-                                    {child.level > 0 && (
-                                      <span className="ml-2 text-gray-400">
-                                        (H{child.level + HEADING_START_LEVEL - 1})
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="flex items-center space-x-2 text-xs text-gray-500">
-                                    <div className="bg-gray-100 px-2 py-0.5 rounded">Read-only</div>
-                                  </div>
+                          <textarea
+                            className={`w-full h-full p-4 border rounded text-sm resize-none focus:outline-none focus:ring-2 font-mono ${
+                              selectedNode.type === 'frontmatter'
+                                ? 'border-purple-300 focus:ring-purple-500 bg-purple-50'
+                                : 'border-gray-300 focus:ring-blue-500'
+                            }`}
+                            value={selectedNode.content}
+                            onChange={(e) => {
+                              const newContent = e.target.value;
+                              setSelectedNode({ ...selectedNode, content: newContent });
+                              updateNodeContent(selectedNode.id, newContent);
+                            }}
+                            placeholder={
+                              selectedNode.type === 'frontmatter'
+                                ? 'YAML 형식으로 메타데이터를 입력하세요...\n예:\ntitle: 문서 제목\nauthor: 작성자\ndate: 2024-01-01'
+                                : '마크다운 내용을 입력하세요...'
+                            }
+                          />
+                        );
+                      } else {
+                        // 하위 노드가 있으면 50:50 분할
+                        return (
+                          <div className="h-full flex flex-col">
+                            {/* 상위 50% - 편집 가능 */}
+                            <div className="h-1/2 flex flex-col border-b-2 border-gray-300">
+                              <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-200">
+                                <div className="text-xs font-semibold text-blue-700">
+                                  📝 현재 섹션 (편집 가능)
                                 </div>
+                              </div>
+                              <div className="flex-1 overflow-hidden p-4">
                                 <textarea
-                                  className="w-full p-4 border border-gray-200 rounded text-sm resize-none font-mono bg-gray-50 text-gray-700 cursor-not-allowed"
-                                  value={child.content}
-                                  readOnly
-                                  rows={Math.min(10, Math.max(3, child.content.split('\n').length))}
-                                  placeholder="내용 없음"
+                                  className={`w-full h-full p-4 border rounded text-sm resize-none focus:outline-none focus:ring-2 font-mono ${
+                                    selectedNode.type === 'frontmatter'
+                                      ? 'border-purple-300 focus:ring-purple-500 bg-purple-50'
+                                      : 'border-gray-300 focus:ring-blue-500'
+                                  }`}
+                                  value={selectedNode.content}
+                                  onChange={(e) => {
+                                    const newContent = e.target.value;
+                                    setSelectedNode({ ...selectedNode, content: newContent });
+                                    updateNodeContent(selectedNode.id, newContent);
+                                  }}
+                                  placeholder={
+                                    selectedNode.type === 'frontmatter'
+                                      ? 'YAML 형식으로 메타데이터를 입력하세요...\n예:\ntitle: 문서 제목\nauthor: 작성자\ndate: 2024-01-01'
+                                      : '마크다운 내용을 입력하세요...'
+                                  }
                                 />
                               </div>
-                            ))}
+                            </div>
+
+                            {/* 하위 50% - Read-only */}
+                            <div className="h-1/2 flex flex-col">
+                              <div className="flex items-center justify-between px-4 py-2 bg-gray-100 border-b border-gray-200">
+                                <div className="text-xs font-semibold text-gray-700">
+                                  👁️ 하위 섹션 ({childNodes.length}개)
+                                </div>
+                                <div className="text-xs text-gray-500">Read-only</div>
+                              </div>
+                              <div className="flex-1 overflow-y-auto p-4">
+                                <div className="space-y-4">
+                                  {childNodes.map((child) => (
+                                    <div key={child.id} className="relative">
+                                      <div className="flex items-center justify-between mb-2 px-1">
+                                        <div className="text-xs font-semibold text-gray-700">
+                                          {child.title}
+                                          {child.level > 0 && (
+                                            <span className="ml-2 text-gray-400">
+                                              (H{child.level + HEADING_START_LEVEL - 1})
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <textarea
+                                        className="w-full p-4 border border-gray-200 rounded text-sm resize-none font-mono bg-gray-50 text-gray-700 cursor-not-allowed"
+                                        value={child.content}
+                                        readOnly
+                                        rows={Math.min(10, Math.max(3, child.content.split('\n').length))}
+                                        placeholder="내용 없음"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         );
-                      })()}
-                    </div>
+                      }
+                    })()
                   )}
                 </div>
               </>
