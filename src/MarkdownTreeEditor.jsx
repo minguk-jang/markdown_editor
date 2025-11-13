@@ -917,11 +917,21 @@ const MarkdownTreeEditor = () => {
               <div className="border-l border-gray-300 h-6 mx-1"></div>
 
               <button
-                onClick={() => setShowVersions(!showVersions)}
+                onClick={async () => {
+                  if (!currentPromptName) {
+                    alert('먼저 Langfuse 프롬프트를 불러오세요.');
+                    return;
+                  }
+                  // 버전 목록 로드 후 모달 표시
+                  await loadVersions(currentPromptName);
+                  setShowVersions(!showVersions);
+                }}
                 className="flex items-center space-x-2 px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm"
+                disabled={!currentPromptName}
+                title={!currentPromptName ? '먼저 Langfuse 프롬프트를 불러오세요' : 'Langfuse 버전 관리'}
               >
                 <Clock size={16} />
-                <span>버전 ({versions.length})</span>
+                <span>버전</span>
               </button>
             </div>
           </div>
@@ -1162,12 +1172,18 @@ const MarkdownTreeEditor = () => {
         </div>
       </div>
 
-      {/* Version History Modal */}
+      {/* Langfuse Version History Modal */}
       {showVersions && (
         <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-2/3 max-h-2/3 overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-bold">버전 히스토리</h3>
+              <div className="flex items-center space-x-2">
+                <Cloud size={20} className="text-indigo-600" />
+                <h3 className="text-lg font-bold">Langfuse 버전 히스토리</h3>
+                {currentPromptName && (
+                  <span className="text-sm text-gray-500">({currentPromptName})</span>
+                )}
+              </div>
               <button
                 onClick={() => setShowVersions(false)}
                 className="text-gray-500 hover:text-gray-700 text-xl"
@@ -1176,43 +1192,53 @@ const MarkdownTreeEditor = () => {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-6">
-              {versions.slice().reverse().map((version, index) => {
-                const isLatest = index === 0;
-                return (
-                  <div key={version.id} className="mb-4 pb-4 border-b border-gray-200 last:border-0">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <div className="font-semibold text-gray-800">버전 {version.id}</div>
-                          {isLatest && (
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
-                              현재
-                            </span>
+              {availableVersions.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">
+                  <Clock size={48} className="mx-auto mb-4 opacity-50" />
+                  <p>버전 히스토리가 없습니다.</p>
+                  <p className="text-sm mt-2">프롬프트를 불러온 후 버전을 확인할 수 있습니다.</p>
+                </div>
+              ) : (
+                availableVersions.map((version) => {
+                  const isCurrent = version.version === currentPromptVersion;
+                  return (
+                    <div key={version.version} className="mb-4 pb-4 border-b border-gray-200 last:border-0">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <div className="font-semibold text-gray-800">버전 {version.version}</div>
+                            {isCurrent && (
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                                현재
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {new Date(version.timestamp).toLocaleString('ko-KR')}
+                          </div>
+                          {version.commitMessage && (
+                            <div className="text-sm text-gray-600 mt-2">
+                              {version.commitMessage}
+                            </div>
                           )}
                         </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {new Date(version.timestamp).toLocaleString('ko-KR')}
-                        </div>
-                        {version.filePath && (
-                          <div className="text-xs text-gray-400 mt-1">
-                            📁 {version.filePath}
-                          </div>
+                        {!isCurrent && (
+                          <button
+                            onClick={() => {
+                              loadFromLangfuse(currentPromptName, version.version);
+                              setShowVersions(false);
+                            }}
+                            className="flex items-center space-x-1 px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                          >
+                            <RotateCcw size={14} />
+                            <span>불러오기</span>
+                          </button>
                         )}
                       </div>
-                      {!isLatest && version.filePath && (
-                        <button
-                          onClick={() => restoreVersion(version)}
-                          className="flex items-center space-x-1 px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
-                        >
-                          <RotateCcw size={14} />
-                          <span>복구</span>
-                        </button>
-                      )}
                     </div>
-                    <div className="text-sm text-gray-600">{version.description}</div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
