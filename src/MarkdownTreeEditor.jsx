@@ -634,110 +634,133 @@ const MarkdownTreeEditor = () => {
   };
 
   const parseMarkdown = (markdown, filename) => {
-    const lines = markdown.split('\n');
-    const root = {
-      id: 'root',
-      title: filename,
-      level: 0,
-      content: '',
-      children: []
-    };
+    try {
+      const lines = markdown.split('\n');
+      const root = {
+        id: 'root',
+        title: filename,
+        level: 0,
+        content: '',
+        children: []
+      };
 
-    // Frontmatter 파싱
-    let lineIndex = 0;
-    let frontmatterContent = '';
-    if (lines[0] === '---') {
-      lineIndex = 1;
-      while (lineIndex < lines.length && lines[lineIndex] !== '---') {
-        frontmatterContent += lines[lineIndex] + '\n';
-        lineIndex++;
-      }
-      if (lineIndex < lines.length) {
-        lineIndex++; // '---' 건너뛰기
-        // Frontmatter 노드 추가
-        root.children.push({
-          id: 'frontmatter',
-          title: 'Frontmatter',
-          level: 0,
-          type: 'frontmatter',
-          content: frontmatterContent.trim(),
-          children: []
-        });
-      }
-    }
-
-    let currentParent = root;
-    let parentStack = [root];
-    let currentContent = [];
-    let nodeCounter = 0;
-
-    // 나머지 라인 파싱
-    for (let i = lineIndex; i < lines.length; i++) {
-      const line = lines[i];
-      const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
-
-      if (headingMatch) {
-        // 이전 노드의 content 저장
-        if (currentContent.length > 0 && parentStack.length > 1) {
-          const lastNode = parentStack[parentStack.length - 1];
-          lastNode.content = currentContent.join('\n').trim();
-          currentContent = [];
+      // Frontmatter 파싱
+      let lineIndex = 0;
+      let frontmatterContent = '';
+      if (lines[0] === '---') {
+        lineIndex = 1;
+        while (lineIndex < lines.length && lines[lineIndex] !== '---') {
+          frontmatterContent += lines[lineIndex] + '\n';
+          lineIndex++;
         }
-
-        const actualLevel = headingMatch[1].length;
-        const title = headingMatch[2];
-
-        // HEADING_START_LEVEL을 고려하여 트리 레벨 계산
-        const treeLevel = actualLevel - HEADING_START_LEVEL + 1;
-
-        // 적절한 부모 찾기
-        while (parentStack.length > treeLevel) {
-          parentStack.pop();
+        if (lineIndex < lines.length) {
+          lineIndex++; // '---' 건너뛰기
+          // Frontmatter 노드 추가
+          root.children.push({
+            id: 'frontmatter',
+            title: 'Frontmatter',
+            level: 0,
+            type: 'frontmatter',
+            content: frontmatterContent.trim(),
+            children: []
+          });
         }
+      }
 
-        const newNode = {
-          id: `node-${++nodeCounter}`,
-          title,
-          level: treeLevel,
-          content: '',
-          children: []
-        };
+      let currentParent = root;
+      let parentStack = [root];
+      let currentContent = [];
+      let nodeCounter = 0;
 
-        currentParent = parentStack[parentStack.length - 1];
-        currentParent.children.push(newNode);
-        parentStack.push(newNode);
-      } else {
-        // 컨텐츠 라인
-        if (parentStack.length === 1) {
-          // root content
-          root.content += line + '\n';
+      // 나머지 라인 파싱
+      for (let i = lineIndex; i < lines.length; i++) {
+        const line = lines[i];
+        const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+
+        if (headingMatch) {
+          // 이전 노드의 content 저장
+          if (currentContent.length > 0 && parentStack.length > 1) {
+            const lastNode = parentStack[parentStack.length - 1];
+            lastNode.content = currentContent.join('\n').trim();
+            currentContent = [];
+          }
+
+          const actualLevel = headingMatch[1].length;
+          const title = headingMatch[2];
+
+          // HEADING_START_LEVEL을 고려하여 트리 레벨 계산
+          const treeLevel = actualLevel - HEADING_START_LEVEL + 1;
+
+          // 적절한 부모 찾기
+          while (parentStack.length > treeLevel) {
+            parentStack.pop();
+          }
+
+          const newNode = {
+            id: `node-${++nodeCounter}`,
+            title,
+            level: treeLevel,
+            content: '',
+            children: []
+          };
+
+          currentParent = parentStack[parentStack.length - 1];
+          currentParent.children.push(newNode);
+          parentStack.push(newNode);
         } else {
-          currentContent.push(line);
+          // 컨텐츠 라인
+          if (parentStack.length === 1) {
+            // root content
+            root.content += line + '\n';
+          } else {
+            currentContent.push(line);
+          }
         }
       }
-    }
 
-    // 마지막 노드의 content 저장
-    if (currentContent.length > 0 && parentStack.length > 1) {
-      const lastNode = parentStack[parentStack.length - 1];
-      lastNode.content = currentContent.join('\n').trim();
-    }
-
-    root.content = root.content.trim();
-    setData(root);
-    setSelectedNode(null);
-
-    // 모든 노드 확장
-    const getAllIds = (node) => {
-      let ids = [node.id];
-      if (node.children) {
-        node.children.forEach(child => {
-          ids = [...ids, ...getAllIds(child)];
-        });
+      // 마지막 노드의 content 저장
+      if (currentContent.length > 0 && parentStack.length > 1) {
+        const lastNode = parentStack[parentStack.length - 1];
+        lastNode.content = currentContent.join('\n').trim();
       }
-      return ids;
-    };
-    setExpandedNodes(new Set(getAllIds(root)));
+
+      root.content = root.content.trim();
+      setData(root);
+      setSelectedNode(null);
+
+      // 모든 노드 확장
+      const getAllIds = (node) => {
+        let ids = [node.id];
+        if (node.children) {
+          node.children.forEach(child => {
+            ids = [...ids, ...getAllIds(child)];
+          });
+        }
+        return ids;
+      };
+      setExpandedNodes(new Set(getAllIds(root)));
+    } catch (error) {
+      console.error('마크다운 파싱 실패:', error);
+      console.warn('⚠️  트리 구조 파싱 실패 - 단일 문서로 표시합니다');
+
+      // Fallback: 전체 마크다운을 단일 노드로 표시
+      const fallbackRoot = {
+        id: 'root',
+        title: filename,
+        level: 0,
+        content: markdown,
+        children: []
+      };
+
+      setData(fallbackRoot);
+      setSelectedNode(fallbackRoot);
+      setExpandedNodes(new Set(['root']));
+
+      // 사용자에게 알림 (선택적)
+      setTimeout(() => {
+        console.log('📄 마크다운 파일을 단일 문서로 불러왔습니다. 트리 구조로 파싱할 수 없는 형식입니다.');
+      }, 100);
+    }
   };
 
   // 마크다운 렌더링
