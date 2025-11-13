@@ -117,7 +117,7 @@ export async function savePrompt(
 }
 
 /**
- * 전체 프롬프트 목록 가져오기
+ * 전체 프롬프트 목록 가져오기 (spica-skills/ 필터링)
  * @returns 프롬프트 목록
  */
 export async function listPrompts(): Promise<PromptListItem[]> {
@@ -131,27 +131,68 @@ export async function listPrompts(): Promise<PromptListItem[]> {
     // Basic Auth 인코딩
     const auth = Buffer.from(`${publicKey}:${secretKey}`).toString('base64');
 
-    const response = await fetch(`${baseUrl}/api/public/v2/prompts`, {
-      method: 'GET',
-      headers: {
-        Authorization: `Basic ${auth}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    // 모든 프롬프트를 가져오기 위한 페이지네이션 처리
+    let allPrompts: any[] = [];
+    let page = 1;
+    const limit = 50; // 한 번에 50개씩 가져오기
+    let hasMore = true;
 
-    if (!response.ok) {
-      throw new Error(`API 요청 실패: ${response.status} ${response.statusText}`);
+    console.log('📋 Langfuse 프롬프트 목록 로딩 중...');
+
+    while (hasMore) {
+      const url = new URL(`${baseUrl}/api/public/v2/prompts`);
+      url.searchParams.append('page', page.toString());
+      url.searchParams.append('limit', limit.toString());
+
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          Authorization: `Basic ${auth}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`API 요청 실패: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const pageData = data.data || [];
+
+      console.log(`  페이지 ${page}: ${pageData.length}개 프롬프트 로드`);
+
+      allPrompts = allPrompts.concat(pageData);
+
+      // 더 이상 데이터가 없으면 종료
+      if (pageData.length < limit) {
+        hasMore = false;
+      } else {
+        page++;
+      }
+
+      // 무한 루프 방지 (최대 20페이지 = 1000개)
+      if (page > 20) {
+        console.warn('⚠️  최대 페이지 수 도달 (20페이지)');
+        break;
+      }
     }
 
-    const data = await response.json();
+    console.log(`✅ 총 ${allPrompts.length}개 프롬프트 로드 완료`);
 
-    // Langfuse API 응답을 우리 형식으로 변환
-    const prompts: PromptListItem[] = (data.data || []).map((item: any) => ({
-      name: item.name,
-      version: item.version || 1,
-      lastUpdated: item.updatedAt || item.createdAt || new Date().toISOString(),
-      labels: item.labels || [],
-    }));
+    // spica-skills/ 필터링 및 형식 변환
+    const prompts: PromptListItem[] = allPrompts
+      .filter((item: any) => {
+        const name = item.name || '';
+        return name.startsWith('spica-skills/');
+      })
+      .map((item: any) => ({
+        name: item.name,
+        version: item.version || 1,
+        lastUpdated: item.updatedAt || item.createdAt || new Date().toISOString(),
+        labels: item.labels || [],
+      }));
+
+    console.log(`🔍 spica-skills/ 필터링 결과: ${prompts.length}개`);
 
     // 최신 순으로 정렬
     return prompts.sort(

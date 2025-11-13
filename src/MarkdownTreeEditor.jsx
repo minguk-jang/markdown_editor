@@ -154,8 +154,20 @@ const MarkdownTreeEditor = () => {
 
   // Langfuse에 저장
   const saveToLangfuse = async () => {
-    const promptName = currentPromptName || prompt('저장할 프롬프트 이름을 입력하세요:', data.title.replace('.md', ''));
-    if (!promptName) return;
+    // 현재 프롬프트 이름이 있으면 사용, 없으면 입력 받기
+    let promptName = currentPromptName;
+
+    if (!promptName) {
+      // spica-skills/ 접두사 제외한 이름 제안
+      const defaultName = data.title.replace('.md', '').replace('spica-skills/', '');
+      const userInput = prompt('저장할 프롬프트 이름을 입력하세요 (spica-skills/ 자동 추가):', defaultName);
+      if (!userInput) return;
+
+      // spica-skills/ 접두사 자동 추가 (이미 있으면 중복 방지)
+      promptName = userInput.startsWith('spica-skills/')
+        ? userInput
+        : `spica-skills/${userInput}`;
+    }
 
     const commitMessage = prompt('변경 사항을 설명하세요 (선택):', '마크다운 파일 업데이트');
 
