@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronRight, ChevronDown, FileText, Download, Upload, Plus, Trash2, Clock, RotateCcw, Eye, Edit3, FolderOpen, Save, BookOpen, ChevronUp, FileCode } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Download, Upload, Plus, Trash2, Clock, RotateCcw, Eye, Edit3, FolderOpen, Save, BookOpen, ChevronUp, FileCode, Cloud } from 'lucide-react';
 
 // ====== 설정 (쉽게 변경 가능) ======
 const HEADING_START_LEVEL = 2; // 마크다운 헤딩 시작 레벨 (1 = H1(#), 2 = H2(##))
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 // =====================================
 
 const MarkdownTreeEditor = () => {
@@ -25,6 +26,12 @@ const MarkdownTreeEditor = () => {
   const [showGuide, setShowGuide] = useState(true);
   const [guideContent, setGuideContent] = useState('');
   const fileInputRef = useRef(null);
+
+  // Langfuse 관련 상태
+  const [showLangfuseModal, setShowLangfuseModal] = useState(false);
+  const [langfusePrompts, setLangfusePrompts] = useState([]);
+  const [langfuseLoading, setLangfuseLoading] = useState(false);
+  const [currentPromptName, setCurrentPromptName] = useState(null);
 
   // example.md 로드
   useEffect(() => {
@@ -95,6 +102,96 @@ const MarkdownTreeEditor = () => {
       }
     ]
   });
+
+  // ========== Langfuse 연동 함수 ==========
+
+  // Langfuse 프롬프트 목록 가져오기
+  const loadLangfusePrompts = async () => {
+    setLangfuseLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/prompts`);
+      if (!response.ok) {
+        throw new Error('Langfuse 연결 실패');
+      }
+      const result = await response.json();
+      if (result.success) {
+        setLangfusePrompts(result.data);
+        setShowLangfuseModal(true);
+      } else {
+        alert(`오류: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Langfuse 프롬프트 로드 실패:', error);
+      alert('Langfuse 서버에 연결할 수 없습니다.\nAPI 서버가 실행 중인지 확인하세요. (npm run server:dev)');
+    } finally {
+      setLangfuseLoading(false);
+    }
+  };
+
+  // Langfuse에서 프롬프트 로드
+  const loadFromLangfuse = async (promptName) => {
+    try {
+      const response = await fetch(`${API_URL}/api/prompts/${encodeURIComponent(promptName)}`);
+      if (!response.ok) {
+        throw new Error('프롬프트 로드 실패');
+      }
+      const result = await response.json();
+      if (result.success && result.data) {
+        const prompt = result.data;
+        // 마크다운 파싱
+        parseMarkdown(prompt.content, `${promptName}.md`);
+        setCurrentPromptName(promptName);
+        setShowLangfuseModal(false);
+        alert(`✅ "${promptName}" 로드 완료! (버전 ${prompt.version})`);
+      } else {
+        alert(`오류: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('프롬프트 로드 실패:', error);
+      alert('프롬프트를 로드할 수 없습니다.');
+    }
+  };
+
+  // Langfuse에 저장
+  const saveToLangfuse = async () => {
+    const promptName = currentPromptName || prompt('저장할 프롬프트 이름을 입력하세요:', data.title.replace('.md', ''));
+    if (!promptName) return;
+
+    const commitMessage = prompt('변경 사항을 설명하세요 (선택):', '마크다운 파일 업데이트');
+
+    try {
+      const markdown = convertToMarkdown(data);
+
+      const response = await fetch(`${API_URL}/api/prompts/${encodeURIComponent(promptName)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: markdown,
+          commitMessage: commitMessage || '마크다운 파일 업데이트',
+          labels: ['latest']
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('저장 실패');
+      }
+
+      const result = await response.json();
+      if (result.success && result.data) {
+        setCurrentPromptName(promptName);
+        alert(`✅ Langfuse에 저장 완료!\n프롬프트: ${promptName}\n버전: ${result.data.version}`);
+      } else {
+        alert(`오류: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Langfuse 저장 실패:', error);
+      alert('Langfuse에 저장할 수 없습니다.\nAPI 서버가 실행 중인지 확인하세요.');
+    }
+  };
+
+  // ========== 기존 함수들 ==========
 
   // 폴더 선택
   const selectFolder = async () => {
@@ -749,6 +846,28 @@ const MarkdownTreeEditor = () => {
             <h1 className="text-xl font-bold text-gray-800">Markdown Tree Editor</h1>
 
             <div className="flex items-center space-x-2">
+              {/* Langfuse 버튼 추가 */}
+              <button
+                onClick={loadLangfusePrompts}
+                disabled={langfuseLoading}
+                className="flex items-center space-x-2 px-3 py-1.5 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors text-sm"
+                title="Langfuse에서 불러오기"
+              >
+                <Cloud size={16} />
+                <span>{langfuseLoading ? '로딩...' : 'Langfuse 불러오기'}</span>
+              </button>
+
+              <button
+                onClick={saveToLangfuse}
+                className="flex items-center space-x-2 px-3 py-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors text-sm"
+                title="Langfuse에 저장"
+              >
+                <Cloud size={16} />
+                <span>Langfuse 저장</span>
+              </button>
+
+              <div className="border-l border-gray-300 h-6 mx-1"></div>
+
               <button
                 onClick={selectFolder}
                 className="flex items-center space-x-2 px-3 py-1.5 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors text-sm"
@@ -802,7 +921,7 @@ const MarkdownTreeEditor = () => {
           </div>
 
           <div className="text-sm text-gray-500">
-            {directoryHandle ? `📁 ${directoryHandle.name}` : '폴더를 선택하세요'}
+            {currentPromptName ? `☁️ Langfuse: ${currentPromptName}` : directoryHandle ? `📁 ${directoryHandle.name}` : '파일을 불러오세요'}
           </div>
         </div>
       </div>
@@ -1035,6 +1154,67 @@ const MarkdownTreeEditor = () => {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Langfuse Prompts Modal */}
+      {showLangfuseModal && (
+        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-2/3 max-h-2/3 overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Cloud size={20} className="text-indigo-600" />
+                <h3 className="text-lg font-bold">Langfuse 프롬프트 불러오기</h3>
+              </div>
+              <button
+                onClick={() => setShowLangfuseModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-xl"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              {langfusePrompts.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">
+                  <Cloud size={48} className="mx-auto mb-4 opacity-50" />
+                  <p>프롬프트가 없습니다.</p>
+                  <p className="text-sm mt-2">Langfuse에 프롬프트를 먼저 저장하세요.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {langfusePrompts.map((prompt) => (
+                    <button
+                      key={prompt.name}
+                      onClick={() => loadFromLangfuse(prompt.name)}
+                      className="w-full text-left p-4 border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-300 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="font-semibold text-gray-800">{prompt.name}</div>
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                          v{prompt.version}
+                        </span>
+                      </div>
+                      {prompt.labels && prompt.labels.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-1">
+                          {prompt.labels.map((label) => (
+                            <span
+                              key={label}
+                              className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded"
+                            >
+                              {label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-500">
+                        {new Date(prompt.lastUpdated).toLocaleString('ko-KR')}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
