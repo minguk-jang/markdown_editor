@@ -117,21 +117,47 @@ export async function savePrompt(
   request: PromptSaveRequest
 ): Promise<PromptSaveResponse> {
   try {
-    // Langfuse에 프롬프트 생성/업데이트
-    // 같은 이름이면 자동으로 새 버전이 생성됨
-    const result = await langfuse.createPrompt({
-      name,
-      prompt: request.content,
-      labels: request.labels || ['latest'],
-      config: {
-        commitMessage: request.commitMessage || '마크다운 파일 업데이트',
-        timestamp: new Date().toISOString(),
+    // Langfuse REST API 직접 호출 (SDK 대신)
+    const baseUrl = process.env.LANGFUSE_HOST || 'https://cloud.langfuse.com';
+    const publicKey = process.env.LANGFUSE_PUBLIC_KEY || '';
+    const secretKey = process.env.LANGFUSE_SECRET_KEY || '';
+
+    // Basic Auth 인코딩
+    const auth = Buffer.from(`${publicKey}:${secretKey}`).toString('base64');
+
+    console.log(`💾 프롬프트 저장 시작: ${name}`);
+
+    // POST 요청으로 프롬프트 생성/업데이트
+    const url = new URL(`${baseUrl}/api/public/prompts`);
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        name,
+        prompt: request.content,
+        labels: request.labels || ['production', 'latest'],
+        config: {
+          commitMessage: request.commitMessage || '마크다운 파일 업데이트',
+          timestamp: new Date().toISOString(),
+        },
+      }),
     });
 
-    // Langfuse SDK가 버전 정보를 반환하지 않을 수 있으므로
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ 저장 실패 (${response.status}):`, errorText);
+      throw new Error(`API 요청 실패: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log(`✅ 프롬프트 저장 성공: ${name} (v${result.version || '?'})`);
+
     // 저장 후 다시 가져와서 버전 확인
-    const savedPrompt = await getPrompt(name, request.labels?.[0] || 'latest');
+    const savedPrompt = await getPrompt(name, request.labels?.[0] || 'production');
 
     return {
       success: true,
