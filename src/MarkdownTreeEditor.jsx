@@ -881,48 +881,6 @@ const MarkdownTreeEditor = () => {
               <div className="border-l border-gray-300 h-6 mx-1"></div>
 
               <button
-                onClick={selectFolder}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors text-sm"
-                title="작업 폴더 선택"
-              >
-                <FolderOpen size={16} />
-                <span>폴더 선택</span>
-              </button>
-
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                accept=".md,.markdown"
-                className="hidden"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm"
-              >
-                <Upload size={16} />
-                <span>가져오기</span>
-              </button>
-
-              <button
-                onClick={() => saveToFileSystem('수동 저장')}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-sm"
-                disabled={!directoryHandle}
-                title={!directoryHandle ? '먼저 폴더를 선택하세요' : ''}
-              >
-                <Save size={16} />
-                <span>저장</span>
-              </button>
-
-              <button
-                onClick={downloadFile}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm"
-              >
-                <Download size={16} />
-                <span>내보내기</span>
-              </button>
-
-              <button
                 onClick={() => setShowVersions(!showVersions)}
                 className="flex items-center space-x-2 px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm"
               >

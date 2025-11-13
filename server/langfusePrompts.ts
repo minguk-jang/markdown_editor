@@ -43,12 +43,50 @@ export async function getPrompt(
   version?: number
 ): Promise<LangfusePrompt> {
   try {
-    // Langfuse에서 프롬프트 가져오기
-    const prompt = await langfuse.getPrompt(name, version, label);
+    // Langfuse REST API 직접 호출 (SDK 대신)
+    const baseUrl = process.env.LANGFUSE_HOST || 'https://cloud.langfuse.com';
+    const publicKey = process.env.LANGFUSE_PUBLIC_KEY || '';
+    const secretKey = process.env.LANGFUSE_SECRET_KEY || '';
+
+    // Basic Auth 인코딩
+    const auth = Buffer.from(`${publicKey}:${secretKey}`).toString('base64');
+
+    // URL 생성 (query parameter로 name 전달)
+    const url = new URL(`${baseUrl}/api/public/v2/prompts`);
+    url.searchParams.append('name', name);
+    if (label) {
+      url.searchParams.append('label', label);
+    }
+    if (version) {
+      url.searchParams.append('version', version.toString());
+    }
+
+    console.log(`📥 프롬프트 가져오기: ${name} (label: ${label || 'none'}, version: ${version || 'latest'})`);
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`API 요청 실패: ${response.status} ${response.statusText}`);
+    }
+
+    const responseData = await response.json();
+    // Langfuse API는 { data: [...] } 형식으로 반환할 수 있음
+    const promptData = responseData.data || responseData;
+
+    // 배열로 반환되는 경우 첫 번째 항목 선택
+    const prompt = Array.isArray(promptData) ? promptData[0] : promptData;
 
     if (!prompt) {
       throw new Error(`프롬프트 '${name}'을 찾을 수 없습니다.`);
     }
+
+    console.log(`✅ 프롬프트 로드 성공: ${name} (v${prompt.version})`);
 
     // Langfuse 프롬프트를 우리 형식으로 변환
     const result: LangfusePrompt = {
