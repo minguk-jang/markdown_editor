@@ -17,7 +17,6 @@ const MarkdownTreeEditor = () => {
       filePath: null
     }
   ]);
-  const [showVersions, setShowVersions] = useState(false);
   const [draggedNode, setDraggedNode] = useState(null);
   const [dragOverNode, setDragOverNode] = useState(null);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
@@ -75,6 +74,20 @@ const MarkdownTreeEditor = () => {
       document.removeEventListener('mouseup', handleMouseUp);
     };
   }, [isResizing]);
+
+  // 드롭다운 외부 클릭시 닫기
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (showVersionsDropdown && !e.target.closest('.version-dropdown')) {
+        setShowVersionsDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showVersionsDropdown]);
 
   // 초기 빈 데이터 구조
   const [data, setData] = useState({
@@ -535,7 +548,6 @@ const MarkdownTreeEditor = () => {
     try {
       const dataDir = await directoryHandle.getDirectoryHandle('data');
       await loadVersion(version, dataDir);
-      setShowVersions(false);
       alert(`버전 ${version.id} 복구 완료!`);
     } catch (err) {
       console.error('버전 복구 실패:', err);
@@ -927,26 +939,6 @@ const MarkdownTreeEditor = () => {
                 <Cloud size={16} />
                 <span>Langfuse 저장</span>
               </button>
-
-              <div className="border-l border-gray-300 h-6 mx-1"></div>
-
-              <button
-                onClick={async () => {
-                  if (!currentPromptName) {
-                    alert('먼저 Langfuse 프롬프트를 불러오세요.');
-                    return;
-                  }
-                  // 버전 목록 로드 후 모달 표시
-                  await loadVersions(currentPromptName);
-                  setShowVersions(!showVersions);
-                }}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm"
-                disabled={!currentPromptName}
-                title={!currentPromptName ? '먼저 Langfuse 프롬프트를 불러오세요' : 'Langfuse 버전 관리'}
-              >
-                <Clock size={16} />
-                <span>버전 ({availableVersions.length})</span>
-              </button>
             </div>
           </div>
 
@@ -955,46 +947,60 @@ const MarkdownTreeEditor = () => {
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-500">☁️ Langfuse: {currentPromptName}</span>
                 {currentPromptVersion && (
-                  <div className="relative">
+                  <div className="relative version-dropdown">
                     <button
                       onClick={() => setShowVersionsDropdown(!showVersionsDropdown)}
                       className="flex items-center space-x-1 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 transition-colors"
+                      title="버전 선택"
                     >
                       <span>v{currentPromptVersion}</span>
                       <ChevronDown size={12} />
                     </button>
                     {showVersionsDropdown && availableVersions.length > 0 && (
-                      <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 w-64 max-h-96 overflow-y-auto">
-                        <div className="p-2 border-b border-gray-200 bg-gray-50">
-                          <div className="text-xs font-semibold text-gray-700">버전 선택</div>
+                      <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl z-50 w-72 max-h-96 overflow-y-auto">
+                        <div className="sticky top-0 p-3 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+                          <div className="flex items-center justify-between">
+                            <div className="text-sm font-semibold text-gray-800">버전 선택</div>
+                            <div className="text-xs text-gray-500">{availableVersions.length}개 버전</div>
+                          </div>
                         </div>
-                        {availableVersions.map((v) => (
-                          <button
-                            key={v.version}
-                            onClick={() => {
-                              loadFromLangfuse(currentPromptName, v.version);
-                              setShowVersionsDropdown(false);
-                            }}
-                            className={`w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-100 ${
-                              v.version === currentPromptVersion ? 'bg-blue-50 font-semibold' : ''
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-sm text-gray-800">v{v.version}</span>
-                              {v.version === currentPromptVersion && (
-                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">현재</span>
-                              )}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {new Date(v.timestamp).toLocaleString('ko-KR')}
-                            </div>
-                            {v.commitMessage && (
-                              <div className="text-xs text-gray-400 mt-1 truncate">
-                                {v.commitMessage}
+                        <div className="max-h-80 overflow-y-auto">
+                          {availableVersions.map((v) => (
+                            <button
+                              key={v.version}
+                              onClick={() => {
+                                loadFromLangfuse(currentPromptName, v.version);
+                                setShowVersionsDropdown(false);
+                              }}
+                              className={`w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 ${
+                                v.version === currentPromptVersion ? 'bg-blue-50 border-l-4 border-l-blue-500' : 'border-l-4 border-l-transparent'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span className={`text-sm ${v.version === currentPromptVersion ? 'font-bold text-blue-700' : 'font-medium text-gray-800'}`}>
+                                  v{v.version}
+                                </span>
+                                {v.version === currentPromptVersion && (
+                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-semibold">현재</span>
+                                )}
                               </div>
-                            )}
-                          </button>
-                        ))}
+                              <div className="text-xs text-gray-500 mb-1">
+                                {new Date(v.timestamp).toLocaleString('ko-KR', {
+                                  year: 'numeric',
+                                  month: '2-digit',
+                                  day: '2-digit',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </div>
+                              {v.commitMessage && (
+                                <div className="text-xs text-gray-600 mt-1 line-clamp-2">
+                                  {v.commitMessage}
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -1478,78 +1484,6 @@ const MarkdownTreeEditor = () => {
           </div>
         </div>
       </div>
-
-      {/* Langfuse Version History Modal */}
-      {showVersions && (
-        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-2/3 max-h-2/3 overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Cloud size={20} className="text-indigo-600" />
-                <h3 className="text-lg font-bold">Langfuse 버전 히스토리</h3>
-                {currentPromptName && (
-                  <span className="text-sm text-gray-500">({currentPromptName})</span>
-                )}
-              </div>
-              <button
-                onClick={() => setShowVersions(false)}
-                className="text-gray-500 hover:text-gray-700 text-xl"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              {availableVersions.length === 0 ? (
-                <div className="text-center text-gray-400 py-8">
-                  <Clock size={48} className="mx-auto mb-4 opacity-50" />
-                  <p>버전 히스토리가 없습니다.</p>
-                  <p className="text-sm mt-2">프롬프트를 불러온 후 버전을 확인할 수 있습니다.</p>
-                </div>
-              ) : (
-                availableVersions.map((version) => {
-                  const isCurrent = version.version === currentPromptVersion;
-                  return (
-                    <div key={version.version} className="mb-4 pb-4 border-b border-gray-200 last:border-0">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2">
-                            <div className="font-semibold text-gray-800">버전 {version.version}</div>
-                            {isCurrent && (
-                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
-                                현재
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {new Date(version.timestamp).toLocaleString('ko-KR')}
-                          </div>
-                          {version.commitMessage && (
-                            <div className="text-sm text-gray-600 mt-2">
-                              {version.commitMessage}
-                            </div>
-                          )}
-                        </div>
-                        {!isCurrent && (
-                          <button
-                            onClick={() => {
-                              loadFromLangfuse(currentPromptName, version.version);
-                              setShowVersions(false);
-                            }}
-                            className="flex items-center space-x-1 px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
-                          >
-                            <RotateCcw size={14} />
-                            <span>불러오기</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Langfuse Prompts Modal */}
       {showLangfuseModal && (
