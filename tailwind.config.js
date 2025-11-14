@@ -6,6 +6,35 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: [
+          '"Pretendard Variable"',
+          'Pretendard',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          'system-ui',
+          'Roboto',
+          '"Helvetica Neue"',
+          '"Segoe UI"',
+          '"Apple SD Gothic Neo"',
+          '"Noto Sans KR"',
+          '"Malgun Gothic"',
+          '"Apple Color Emoji"',
+          '"Segoe UI Emoji"',
+          '"Segoe UI Symbol"',
+          'sans-serif',
+        ],
+        mono: [
+          '"Fira Code"',
+          '"JetBrains Mono"',
+          '"SF Mono"',
+          'Monaco',
+          'Consolas',
+          '"Liberation Mono"',
+          '"Courier New"',
+          'monospace',
+        ],
+      },
       keyframes: {
         'fade-in': {
           '0%': { opacity: '0', transform: 'translateY(-10px)' },
