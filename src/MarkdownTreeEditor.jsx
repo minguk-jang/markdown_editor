@@ -981,19 +981,19 @@ const MarkdownTreeEditor = () => {
                 onClick={loadLangfusePrompts}
                 disabled={langfuseLoading}
                 className="flex items-center space-x-2 px-3 py-1.5 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors text-sm"
-                title="Langfuse에서 불러오기"
+                title="Skill 불러오기"
               >
                 <Cloud size={16} />
-                <span>{langfuseLoading ? '로딩...' : 'Langfuse 불러오기'}</span>
+                <span>{langfuseLoading ? '로딩...' : 'Skill 불러오기'}</span>
               </button>
 
               <button
                 onClick={saveToLangfuse}
                 className="flex items-center space-x-2 px-3 py-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors text-sm"
-                title="Langfuse에 저장"
+                title="Skill 저장"
               >
                 <Cloud size={16} />
-                <span>Langfuse 저장</span>
+                <span>Skill 저장</span>
               </button>
             </div>
           </div>
