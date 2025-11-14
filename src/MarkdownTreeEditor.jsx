@@ -724,7 +724,7 @@ const MarkdownTreeEditor = () => {
 
       root.content = root.content.trim();
       setData(root);
-      setSelectedNode(null);
+      setSelectedNode(root); // 자동으로 루트 노드 선택
 
       // 모든 노드 확장
       const getAllIds = (node) => {
