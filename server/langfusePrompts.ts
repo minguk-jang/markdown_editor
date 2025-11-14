@@ -133,8 +133,10 @@ export async function savePrompt(
     const requestBody = {
       name,
       prompt: request.content,
+      type: request.type || 'text', // 기본값: text (마크다운)
       isActive: true,
       labels: request.labels || ['production', 'latest'],
+      ...(request.config && { config: request.config }), // config가 있으면 추가
     };
 
     console.log('📤 저장 요청 body:', JSON.stringify(requestBody, null, 2));

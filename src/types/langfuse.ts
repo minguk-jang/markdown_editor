@@ -42,10 +42,14 @@ export interface PromptListItem {
 export interface PromptSaveRequest {
   /** 저장할 마크다운 내용 */
   content: string;
+  /** 프롬프트 타입 (text 또는 chat) */
+  type?: 'text' | 'chat';
   /** 커밋 메시지 (변경 설명) */
   commitMessage?: string;
   /** 라벨 목록 */
   labels?: string[];
+  /** 추가 설정 (모델 파라미터 등) */
+  config?: Record<string, any>;
 }
 
 /**
