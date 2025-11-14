@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronRight, ChevronDown, FileText, Download, Upload, Plus, Trash2, Clock, RotateCcw, Eye, Edit3, FolderOpen, Save, BookOpen, ChevronUp, FileCode, Cloud } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Download, Upload, Plus, Trash2, Clock, RotateCcw, Eye, Edit3, FolderOpen, Save, BookOpen, ChevronUp, FileCode, Cloud, HelpCircle, Sparkles } from 'lucide-react';
 
 // ====== 설정 (쉽게 변경 가능) ======
 const HEADING_START_LEVEL = 2; // 마크다운 헤딩 시작 레벨 (1 = H1(#), 2 = H2(##))
@@ -8,7 +8,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const MarkdownTreeEditor = () => {
   const [selectedNode, setSelectedNode] = useState(null);
-  const [expandedNodes, setExpandedNodes] = useState(new Set(['root', 'frontmatter', '1', '2', '3']));
+  const [expandedNodes, setExpandedNodes] = useState(new Set(['root']));
   const [versions, setVersions] = useState([
     {
       id: 1,
@@ -35,6 +35,7 @@ const MarkdownTreeEditor = () => {
   const [currentPromptVersion, setCurrentPromptVersion] = useState(null);
   const [availableVersions, setAvailableVersions] = useState([]);
   const [showVersionsDropdown, setShowVersionsDropdown] = useState(false);
+  const [showHelpPopup, setShowHelpPopup] = useState(false);
 
   // example.md 로드
   useEffect(() => {
@@ -44,66 +45,13 @@ const MarkdownTreeEditor = () => {
       .catch(err => console.error('가이드 파일 로드 실패:', err));
   }, []);
 
-  // 예시 마크다운 데이터 구조
+  // 초기 빈 데이터 구조
   const [data, setData] = useState({
     id: 'root',
-    title: 'README.md',
+    title: 'untitled.md',
     level: 0,
-    content: '프로젝트 전체 개요입니다.',
-    children: [
-      {
-        id: 'frontmatter',
-        title: 'Frontmatter',
-        level: 0,
-        type: 'frontmatter',
-        content: 'title: README\nauthor: Your Name\ndate: 2024-01-01\ntags: [markdown, editor, react]',
-        children: []
-      },
-      {
-        id: '1',
-        title: '프로젝트 소개',
-        level: 1,
-        content: '이 프로젝트는 **마크다운 파일**을 트리 구조로 보여주고 편집할 수 있는 웹 애플리케이션입니다.\n\n주요 특징:\n- 직관적인 네비게이션\n- 쉬운 편집\n- 구조화된 문서 관리\n- 버전 관리',
-        children: [
-          {
-            id: '1-1',
-            title: '주요 기능',
-            level: 2,
-            content: '핵심 기능:\n\n1. 트리 뷰로 문서 구조 파악\n2. 드래그앤드롭으로 재구성\n3. 실시간 마크다운 렌더링\n4. 버전 히스토리 및 복구\n\n**강조**: 모든 기능이 직관적입니다!',
-            children: []
-          },
-          {
-            id: '1-2',
-            title: '기술 스택',
-            level: 2,
-            content: '- React\n- Tailwind CSS\n- Lucide Icons\n\n> 최신 웹 기술을 사용합니다.',
-            children: []
-          }
-        ]
-      },
-      {
-        id: '2',
-        title: '설치 방법',
-        level: 1,
-        content: '설치:\n\n```bash\nnpm install\nnpm start\n```\n\n프로젝트를 클론한 후 위 명령어를 실행하세요.',
-        children: []
-      },
-      {
-        id: '3',
-        title: '사용 가이드',
-        level: 1,
-        content: '왼쪽 트리에서 원하는 섹션을 클릭하면 오른쪽에 내용이 표시됩니다.\n\n드래그앤드롭으로 노드를 드래그하여 순서를 변경하거나 다른 부모 아래로 이동할 수 있습니다.',
-        children: [
-          {
-            id: '3-1',
-            title: '트리 네비게이션',
-            level: 2,
-            content: '화살표를 클릭하여 하위 섹션을 펼치거나 접을 수 있습니다.\n\n- 클릭: 노드 선택\n- 드래그: 위치 이동',
-            children: []
-          }
-        ]
-      }
-    ]
+    content: '',
+    children: []
   });
 
   // ========== Langfuse 연동 함수 ==========
@@ -1024,8 +972,124 @@ const MarkdownTreeEditor = () => {
             ) : directoryHandle ? (
               <span className="text-sm text-gray-500">📁 {directoryHandle.name}</span>
             ) : (
-              <span className="text-sm text-gray-500">파일을 불러오세요</span>
+              <span className="text-sm text-gray-500">시작하려면 Langfuse에서 스킬을 불러오세요</span>
             )}
+
+            {/* 도움말 버튼 */}
+            <div className="relative ml-2">
+              <button
+                onClick={() => setShowHelpPopup(!showHelpPopup)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-600 hover:text-indigo-600"
+                title="도움말"
+              >
+                <HelpCircle size={20} />
+              </button>
+
+              {/* 도움말 팝업 */}
+              {showHelpPopup && (
+                <div className="absolute right-0 mt-2 w-96 bg-white border border-gray-200 rounded-lg shadow-xl z-50 max-h-[80vh] overflow-y-auto">
+                  <div className="sticky top-0 bg-gradient-to-r from-indigo-500 to-purple-500 text-white p-4 rounded-t-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Sparkles size={20} />
+                        <h3 className="font-bold text-lg">SPICA Skill Collector 가이드</h3>
+                      </div>
+                      <button
+                        onClick={() => setShowHelpPopup(false)}
+                        className="hover:bg-white/20 rounded p-1"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-5 space-y-4 text-sm">
+                    <div>
+                      <p className="text-gray-700 leading-relaxed">
+                        SPICA Skill Collector는 <strong className="text-indigo-600">Langfuse</strong>를 활용하여
+                        AI 스킬을 효율적으로 관리하고 편집할 수 있는 도구입니다.
+                      </p>
+                    </div>
+
+                    <div className="border-t pt-4">
+                      <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+                        <span className="bg-indigo-100 text-indigo-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-2">1</span>
+                        스킬 불러오기
+                      </h4>
+                      <div className="ml-8 space-y-2">
+                        <p className="text-gray-600">
+                          상단의 <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">Langfuse 불러오기</span> 버튼을 클릭하여
+                          저장된 스킬 목록을 확인하세요.
+                        </p>
+                        <p className="text-gray-600">
+                          목록에서 원하는 스킬을 선택하면 트리 구조로 불러옵니다.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-4">
+                      <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+                        <span className="bg-indigo-100 text-indigo-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-2">2</span>
+                        스킬 편집하기
+                      </h4>
+                      <div className="ml-8 space-y-2">
+                        <p className="text-gray-600">
+                          <strong>• 섹션 추가:</strong> 왼쪽 트리에서 <Plus size={12} className="inline" /> 버튼으로 새 섹션 추가
+                        </p>
+                        <p className="text-gray-600">
+                          <strong>• 내용 편집:</strong> 섹션을 클릭하여 오른쪽에서 내용 수정
+                        </p>
+                        <p className="text-gray-600">
+                          <strong>• 구조 변경:</strong> 드래그 앤 드롭으로 섹션 순서 및 계층 조정
+                        </p>
+                        <p className="text-gray-600">
+                          <strong>• 미리보기:</strong> 편집/미리보기 버튼으로 렌더링 확인
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-4">
+                      <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+                        <span className="bg-indigo-100 text-indigo-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-2">3</span>
+                        스킬 저장하기
+                      </h4>
+                      <div className="ml-8 space-y-2">
+                        <p className="text-gray-600">
+                          <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-medium">Langfuse 저장</span> 버튼으로
+                          변경사항을 Langfuse에 저장합니다.
+                        </p>
+                        <p className="text-gray-600">
+                          자동으로 새 버전이 생성되어 히스토리가 관리됩니다.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="border-t pt-4">
+                      <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
+                        <span className="bg-indigo-100 text-indigo-700 rounded-full w-6 h-6 flex items-center justify-center text-xs mr-2">4</span>
+                        버전 관리
+                      </h4>
+                      <div className="ml-8 space-y-2">
+                        <p className="text-gray-600">
+                          <Clock size={12} className="inline" /> 버전 버튼을 클릭하여 이전 버전을 확인하고 복원할 수 있습니다.
+                        </p>
+                        <p className="text-gray-600">
+                          각 버전은 타임스탬프와 커밋 메시지로 구분됩니다.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-4 mt-4">
+                      <p className="text-xs text-gray-600 leading-relaxed">
+                        <strong className="text-indigo-700">💡 Tip:</strong>
+                        모든 스킬은 <code className="bg-white px-2 py-0.5 rounded text-indigo-600">spica-skills/</code> 접두사로 시작하며,
+                        마크다운 형식으로 저장됩니다.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -1242,11 +1306,95 @@ const MarkdownTreeEditor = () => {
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center text-gray-400">
-                <div className="text-center">
-                  <FileText size={48} className="mx-auto mb-4 opacity-50" />
-                  <p className="text-lg mb-2">왼쪽 트리에서 섹션을 선택하세요</p>
-                  <p className="text-sm">드래그앤드롭으로 노드를 재배치할 수 있습니다</p>
+              <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
+                <div className="max-w-2xl mx-auto px-8 text-center">
+                  {/* 메인 아이콘 */}
+                  <div className="mb-6 flex justify-center">
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full blur-xl opacity-30 animate-pulse"></div>
+                      <div className="relative bg-white rounded-full p-6 shadow-lg">
+                        <Sparkles size={48} className="text-indigo-600" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 타이틀 */}
+                  <h2 className="text-3xl font-bold text-gray-800 mb-3">
+                    환영합니다! 👋
+                  </h2>
+                  <p className="text-lg text-gray-600 mb-8">
+                    <strong className="text-indigo-600">SPICA Skill Collector</strong>로 AI 스킬을 관리해보세요
+                  </p>
+
+                  {/* 시작 가이드 */}
+                  <div className="bg-white rounded-xl shadow-lg p-8 mb-6 text-left">
+                    <div className="space-y-5">
+                      <div className="flex items-start space-x-4">
+                        <div className="flex-shrink-0 w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center">
+                          <span className="text-indigo-600 font-bold">1</span>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-800 mb-1">Langfuse에서 스킬 불러오기</h3>
+                          <p className="text-sm text-gray-600">
+                            상단의 <Cloud size={14} className="inline text-indigo-600" /> <strong>Langfuse 불러오기</strong> 버튼을 클릭하여
+                            저장된 스킬을 불러오세요.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-4">
+                        <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                          <span className="text-purple-600 font-bold">2</span>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-800 mb-1">스킬 편집하기</h3>
+                          <p className="text-sm text-gray-600">
+                            왼쪽 트리에서 섹션을 선택하고, 드래그 앤 드롭으로 구조를 변경할 수 있습니다.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-4">
+                        <div className="flex-shrink-0 w-8 h-8 bg-pink-100 rounded-full flex items-center justify-center">
+                          <span className="text-pink-600 font-bold">3</span>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-800 mb-1">변경사항 저장하기</h3>
+                          <p className="text-sm text-gray-600">
+                            <Cloud size={14} className="inline text-indigo-600" /> <strong>Langfuse 저장</strong> 버튼으로
+                            자동으로 버전 관리되는 스킬을 저장하세요.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* CTA */}
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                    <button
+                      onClick={loadLangfusePrompts}
+                      disabled={langfuseLoading}
+                      className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                    >
+                      <Cloud size={18} />
+                      <span className="font-semibold">
+                        {langfuseLoading ? '로딩 중...' : '시작하기'}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => setShowHelpPopup(true)}
+                      className="flex items-center space-x-2 px-6 py-3 bg-white text-gray-700 rounded-lg hover:bg-gray-50 transition-colors border border-gray-200 shadow"
+                    >
+                      <HelpCircle size={18} />
+                      <span className="font-semibold">자세한 가이드</span>
+                    </button>
+                  </div>
+
+                  {/* 팁 */}
+                  <div className="mt-8 text-xs text-gray-500">
+                    💡 우측 상단의 <HelpCircle size={12} className="inline" /> 아이콘을 클릭하면 언제든지 도움말을 확인할 수 있습니다.
+                  </div>
                 </div>
               </div>
             )}
