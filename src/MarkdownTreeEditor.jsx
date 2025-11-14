@@ -142,12 +142,15 @@ const MarkdownTreeEditor = () => {
     }
   };
 
-  // Langfuse에서 프롬프트 로드 (특정 버전)
+  // Langfuse에서 프롬프트 로드 (특정 버전 또는 label)
   const loadFromLangfuse = async (promptName, version = null) => {
     try {
+      // 버전이 지정되지 않으면 production label 사용
       const url = version
         ? `${API_URL}/api/prompts/${encodeURIComponent(promptName)}?version=${version}`
-        : `${API_URL}/api/prompts/${encodeURIComponent(promptName)}`;
+        : `${API_URL}/api/prompts/${encodeURIComponent(promptName)}?label=production`;
+
+      console.log(`📥 프롬프트 로드 중: ${promptName}${version ? ` (v${version})` : ' (production)'}`);
 
       const response = await fetch(url);
       if (!response.ok) {
@@ -156,6 +159,9 @@ const MarkdownTreeEditor = () => {
       const result = await response.json();
       if (result.success && result.data) {
         const prompt = result.data;
+
+        console.log(`✅ 프롬프트 로드 성공: ${promptName} v${prompt.version}`);
+
         // 마크다운 파싱
         parseMarkdown(prompt.content, `${promptName}.md`);
         setCurrentPromptName(promptName);
@@ -163,7 +169,8 @@ const MarkdownTreeEditor = () => {
         setShowLangfuseModal(false);
 
         // 버전 목록 로드
-        await loadVersions(promptName);
+        const versions = await loadVersions(promptName);
+        console.log(`📋 버전 목록 로드 완료: ${versions.length}개`);
 
         alert(`✅ "${promptName}" 로드 완료! (버전 ${prompt.version})`);
       } else {
