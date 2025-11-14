@@ -214,6 +214,65 @@ File System Access API를 사용하므로 다음 브라우저에서만 동작합
 
 Firefox는 현재 지원하지 않습니다.
 
+## 트러블슈팅
+
+### 외부 네트워크에서 접속 시 "ERR_CONNECTION_REFUSED" 오류
+
+다른 컴퓨터에서 접속할 때 API 연결이 거부되는 경우:
+
+1. **API 서버가 실행 중인지 확인**:
+   ```bash
+   # 서버 컴퓨터에서 확인
+   npm run server:dev
+   ```
+   콘솔에 "📍 외부 접속: http://<your-ip>:3001" 메시지가 표시되어야 합니다.
+
+2. **방화벽 설정 확인**:
+   ```bash
+   # Linux (Ubuntu/Debian)
+   sudo ufw allow 3000
+   sudo ufw allow 3001
+
+   # Linux (CentOS/RHEL)
+   sudo firewall-cmd --permanent --add-port=3000/tcp
+   sudo firewall-cmd --permanent --add-port=3001/tcp
+   sudo firewall-cmd --reload
+
+   # Windows PowerShell (관리자 권한)
+   New-NetFirewallRule -DisplayName "Vite Dev Server" -Direction Inbound -LocalPort 3000 -Protocol TCP -Action Allow
+   New-NetFirewallRule -DisplayName "API Server" -Direction Inbound -LocalPort 3001 -Protocol TCP -Action Allow
+
+   # macOS
+   # 시스템 환경설정 > 보안 및 개인 정보 보호 > 방화벽에서 Node.js 허용
+   ```
+
+3. **서버가 0.0.0.0으로 바인딩되었는지 확인**:
+   ```bash
+   # Linux/Mac
+   netstat -an | grep 3001
+   lsof -i :3001
+
+   # Windows
+   netstat -an | findstr 3001
+   ```
+   결과에 `0.0.0.0:3001` 또는 `:::3001`이 표시되어야 합니다.
+
+4. **양쪽 서버 모두 실행 중인지 확인**:
+   - Vite 개발 서버 (3000)
+   - API 서버 (3001)
+
+   둘 다 실행 중이어야 합니다:
+   ```bash
+   npm run dev:all
+   ```
+
+5. **네트워크 연결 테스트**:
+   ```bash
+   # 클라이언트 컴퓨터에서
+   curl http://<서버-IP>:3001/api/health
+   ```
+   정상적이면 JSON 응답이 반환됩니다.
+
 ## 라이선스
 
 MIT

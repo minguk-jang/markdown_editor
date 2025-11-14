@@ -57,7 +57,12 @@ const app = express();
 const PORT = process.env.API_PORT || 3001;
 
 // 미들웨어
-app.use(cors()); // CORS 활성화
+app.use(cors({
+  origin: true, // 모든 origin 허용 (외부 네트워크 접속 지원)
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json()); // JSON 파싱
 
 /**
