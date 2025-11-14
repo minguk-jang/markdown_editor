@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronRight, ChevronDown, FileText, Download, Upload, Plus, Trash2, Clock, RotateCcw, Eye, Edit3, FolderOpen, Save, BookOpen, ChevronUp, FileCode } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Download, Upload, Plus, Trash2, Clock, RotateCcw, Eye, Edit3, FolderOpen, Save, BookOpen, ChevronUp, FileCode, Cloud } from 'lucide-react';
 
 // ====== 설정 (쉽게 변경 가능) ======
 const HEADING_START_LEVEL = 2; // 마크다운 헤딩 시작 레벨 (1 = H1(#), 2 = H2(##))
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 // =====================================
 
 const MarkdownTreeEditor = () => {
@@ -19,12 +20,21 @@ const MarkdownTreeEditor = () => {
   const [showVersions, setShowVersions] = useState(false);
   const [draggedNode, setDraggedNode] = useState(null);
   const [dragOverNode, setDragOverNode] = useState(null);
-  const [isPreviewMode, setIsPreviewMode] = useState(true);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [directoryHandle, setDirectoryHandle] = useState(null);
   const [currentDocument, setCurrentDocument] = useState('README');
   const [showGuide, setShowGuide] = useState(true);
   const [guideContent, setGuideContent] = useState('');
   const fileInputRef = useRef(null);
+
+  // Langfuse 관련 상태
+  const [showLangfuseModal, setShowLangfuseModal] = useState(false);
+  const [langfusePrompts, setLangfusePrompts] = useState([]);
+  const [langfuseLoading, setLangfuseLoading] = useState(false);
+  const [currentPromptName, setCurrentPromptName] = useState(null);
+  const [currentPromptVersion, setCurrentPromptVersion] = useState(null);
+  const [availableVersions, setAvailableVersions] = useState([]);
+  const [showVersionsDropdown, setShowVersionsDropdown] = useState(false);
 
   // example.md 로드
   useEffect(() => {
@@ -95,6 +105,141 @@ const MarkdownTreeEditor = () => {
       }
     ]
   });
+
+  // ========== Langfuse 연동 함수 ==========
+
+  // Langfuse 프롬프트 목록 가져오기
+  const loadLangfusePrompts = async () => {
+    setLangfuseLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/api/prompts`);
+      if (!response.ok) {
+        throw new Error('Langfuse 연결 실패');
+      }
+      const result = await response.json();
+      if (result.success) {
+        setLangfusePrompts(result.data);
+        setShowLangfuseModal(true);
+      } else {
+        alert(`오류: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Langfuse 프롬프트 로드 실패:', error);
+      alert('Langfuse 서버에 연결할 수 없습니다.\nAPI 서버가 실행 중인지 확인하세요. (npm run server:dev)');
+    } finally {
+      setLangfuseLoading(false);
+    }
+  };
+
+  // 버전 목록 가져오기
+  const loadVersions = async (promptName) => {
+    try {
+      const response = await fetch(`${API_URL}/api/prompts/${encodeURIComponent(promptName)}/versions`);
+      if (!response.ok) {
+        throw new Error('버전 목록 로드 실패');
+      }
+      const result = await response.json();
+      if (result.success && result.data) {
+        setAvailableVersions(result.data);
+        return result.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('버전 목록 로드 실패:', error);
+      return [];
+    }
+  };
+
+  // Langfuse에서 프롬프트 로드 (특정 버전)
+  const loadFromLangfuse = async (promptName, version = null) => {
+    try {
+      const url = version
+        ? `${API_URL}/api/prompts/${encodeURIComponent(promptName)}?version=${version}`
+        : `${API_URL}/api/prompts/${encodeURIComponent(promptName)}`;
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error('프롬프트 로드 실패');
+      }
+      const result = await response.json();
+      if (result.success && result.data) {
+        const prompt = result.data;
+        // 마크다운 파싱
+        parseMarkdown(prompt.content, `${promptName}.md`);
+        setCurrentPromptName(promptName);
+        setCurrentPromptVersion(prompt.version);
+        setShowLangfuseModal(false);
+
+        // 버전 목록 로드
+        await loadVersions(promptName);
+
+        alert(`✅ "${promptName}" 로드 완료! (버전 ${prompt.version})`);
+      } else {
+        alert(`오류: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('프롬프트 가져오기 실패:', error);
+      alert(`프롬프트 가져오기 실패: ${error.message}`);
+    }
+  };
+
+  // Langfuse에 저장
+  const saveToLangfuse = async () => {
+    // 현재 프롬프트 이름이 있으면 사용, 없으면 입력 받기
+    let promptName = currentPromptName;
+
+    if (!promptName) {
+      // spica-skills/ 접두사 제외한 이름 제안
+      const defaultName = data.title.replace('.md', '').replace('spica-skills/', '');
+      const userInput = prompt('저장할 프롬프트 이름을 입력하세요 (spica-skills/ 자동 추가):', defaultName);
+      if (!userInput) return;
+
+      // spica-skills/ 접두사 자동 추가 (이미 있으면 중복 방지)
+      promptName = userInput.startsWith('spica-skills/')
+        ? userInput
+        : `spica-skills/${userInput}`;
+    }
+
+    const commitMessage = prompt('변경 사항을 설명하세요 (선택):', '마크다운 파일 업데이트');
+
+    try {
+      const markdown = convertToMarkdown(data);
+
+      const response = await fetch(`${API_URL}/api/prompts/${encodeURIComponent(promptName)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: markdown,
+          commitMessage: commitMessage || '마크다운 파일 업데이트',
+          labels: ['production', 'latest']
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('저장 실패');
+      }
+
+      const result = await response.json();
+      if (result.success && result.data) {
+        setCurrentPromptName(promptName);
+        setCurrentPromptVersion(result.data.version);
+
+        // 버전 목록 새로고침
+        await loadVersions(promptName);
+
+        alert(`✅ Langfuse에 저장 완료!\n프롬프트: ${promptName}\n버전: ${result.data.version}`);
+      } else {
+        alert(`오류: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Langfuse 저장 실패:', error);
+      alert('Langfuse에 저장할 수 없습니다.\nAPI 서버가 실행 중인지 확인하세요.');
+    }
+  };
+
+  // ========== 기존 함수들 ==========
 
   // 폴더 선택
   const selectFolder = async () => {
@@ -235,6 +380,18 @@ const MarkdownTreeEditor = () => {
 
     const newData = updateNode(data);
     setData(newData);
+  };
+
+  // 하위 노드 목록을 재귀적으로 수집
+  const collectChildNodes = (node) => {
+    let children = [];
+    if (node.children && node.children.length > 0) {
+      node.children.forEach(child => {
+        children.push(child);
+        children = children.concat(collectChildNodes(child));
+      });
+    }
+    return children;
   };
 
   const updateNodeTitle = (nodeId, newTitle) => {
@@ -477,110 +634,133 @@ const MarkdownTreeEditor = () => {
   };
 
   const parseMarkdown = (markdown, filename) => {
-    const lines = markdown.split('\n');
-    const root = {
-      id: 'root',
-      title: filename,
-      level: 0,
-      content: '',
-      children: []
-    };
+    try {
+      const lines = markdown.split('\n');
+      const root = {
+        id: 'root',
+        title: filename,
+        level: 0,
+        content: '',
+        children: []
+      };
 
-    // Frontmatter 파싱
-    let lineIndex = 0;
-    let frontmatterContent = '';
-    if (lines[0] === '---') {
-      lineIndex = 1;
-      while (lineIndex < lines.length && lines[lineIndex] !== '---') {
-        frontmatterContent += lines[lineIndex] + '\n';
-        lineIndex++;
-      }
-      if (lineIndex < lines.length) {
-        lineIndex++; // '---' 건너뛰기
-        // Frontmatter 노드 추가
-        root.children.push({
-          id: 'frontmatter',
-          title: 'Frontmatter',
-          level: 0,
-          type: 'frontmatter',
-          content: frontmatterContent.trim(),
-          children: []
-        });
-      }
-    }
-
-    let currentParent = root;
-    let parentStack = [root];
-    let currentContent = [];
-    let nodeCounter = 0;
-
-    // 나머지 라인 파싱
-    for (let i = lineIndex; i < lines.length; i++) {
-      const line = lines[i];
-      const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
-
-      if (headingMatch) {
-        // 이전 노드의 content 저장
-        if (currentContent.length > 0 && parentStack.length > 1) {
-          const lastNode = parentStack[parentStack.length - 1];
-          lastNode.content = currentContent.join('\n').trim();
-          currentContent = [];
+      // Frontmatter 파싱
+      let lineIndex = 0;
+      let frontmatterContent = '';
+      if (lines[0] === '---') {
+        lineIndex = 1;
+        while (lineIndex < lines.length && lines[lineIndex] !== '---') {
+          frontmatterContent += lines[lineIndex] + '\n';
+          lineIndex++;
         }
-
-        const actualLevel = headingMatch[1].length;
-        const title = headingMatch[2];
-
-        // HEADING_START_LEVEL을 고려하여 트리 레벨 계산
-        const treeLevel = actualLevel - HEADING_START_LEVEL + 1;
-
-        // 적절한 부모 찾기
-        while (parentStack.length > treeLevel) {
-          parentStack.pop();
+        if (lineIndex < lines.length) {
+          lineIndex++; // '---' 건너뛰기
+          // Frontmatter 노드 추가
+          root.children.push({
+            id: 'frontmatter',
+            title: 'Frontmatter',
+            level: 0,
+            type: 'frontmatter',
+            content: frontmatterContent.trim(),
+            children: []
+          });
         }
+      }
 
-        const newNode = {
-          id: `node-${++nodeCounter}`,
-          title,
-          level: treeLevel,
-          content: '',
-          children: []
-        };
+      let currentParent = root;
+      let parentStack = [root];
+      let currentContent = [];
+      let nodeCounter = 0;
 
-        currentParent = parentStack[parentStack.length - 1];
-        currentParent.children.push(newNode);
-        parentStack.push(newNode);
-      } else {
-        // 컨텐츠 라인
-        if (parentStack.length === 1) {
-          // root content
-          root.content += line + '\n';
+      // 나머지 라인 파싱
+      for (let i = lineIndex; i < lines.length; i++) {
+        const line = lines[i];
+        const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+
+        if (headingMatch) {
+          // 이전 노드의 content 저장
+          if (currentContent.length > 0 && parentStack.length > 1) {
+            const lastNode = parentStack[parentStack.length - 1];
+            lastNode.content = currentContent.join('\n').trim();
+            currentContent = [];
+          }
+
+          const actualLevel = headingMatch[1].length;
+          const title = headingMatch[2];
+
+          // HEADING_START_LEVEL을 고려하여 트리 레벨 계산
+          const treeLevel = actualLevel - HEADING_START_LEVEL + 1;
+
+          // 적절한 부모 찾기
+          while (parentStack.length > treeLevel) {
+            parentStack.pop();
+          }
+
+          const newNode = {
+            id: `node-${++nodeCounter}`,
+            title,
+            level: treeLevel,
+            content: '',
+            children: []
+          };
+
+          currentParent = parentStack[parentStack.length - 1];
+          currentParent.children.push(newNode);
+          parentStack.push(newNode);
         } else {
-          currentContent.push(line);
+          // 컨텐츠 라인
+          if (parentStack.length === 1) {
+            // root content
+            root.content += line + '\n';
+          } else {
+            currentContent.push(line);
+          }
         }
       }
-    }
 
-    // 마지막 노드의 content 저장
-    if (currentContent.length > 0 && parentStack.length > 1) {
-      const lastNode = parentStack[parentStack.length - 1];
-      lastNode.content = currentContent.join('\n').trim();
-    }
-
-    root.content = root.content.trim();
-    setData(root);
-    setSelectedNode(null);
-
-    // 모든 노드 확장
-    const getAllIds = (node) => {
-      let ids = [node.id];
-      if (node.children) {
-        node.children.forEach(child => {
-          ids = [...ids, ...getAllIds(child)];
-        });
+      // 마지막 노드의 content 저장
+      if (currentContent.length > 0 && parentStack.length > 1) {
+        const lastNode = parentStack[parentStack.length - 1];
+        lastNode.content = currentContent.join('\n').trim();
       }
-      return ids;
-    };
-    setExpandedNodes(new Set(getAllIds(root)));
+
+      root.content = root.content.trim();
+      setData(root);
+      setSelectedNode(null);
+
+      // 모든 노드 확장
+      const getAllIds = (node) => {
+        let ids = [node.id];
+        if (node.children) {
+          node.children.forEach(child => {
+            ids = [...ids, ...getAllIds(child)];
+          });
+        }
+        return ids;
+      };
+      setExpandedNodes(new Set(getAllIds(root)));
+    } catch (error) {
+      console.error('마크다운 파싱 실패:', error);
+      console.warn('⚠️  트리 구조 파싱 실패 - 단일 문서로 표시합니다');
+
+      // Fallback: 전체 마크다운을 단일 노드로 표시
+      const fallbackRoot = {
+        id: 'root',
+        title: filename,
+        level: 0,
+        content: markdown,
+        children: []
+      };
+
+      setData(fallbackRoot);
+      setSelectedNode(fallbackRoot);
+      setExpandedNodes(new Set(['root']));
+
+      // 사용자에게 알림 (선택적)
+      setTimeout(() => {
+        console.log('📄 마크다운 파일을 단일 문서로 불러왔습니다. 트리 구조로 파싱할 수 없는 형식입니다.');
+      }, 100);
+    }
   };
 
   // 마크다운 렌더링
@@ -749,60 +929,103 @@ const MarkdownTreeEditor = () => {
             <h1 className="text-xl font-bold text-gray-800">Markdown Tree Editor</h1>
 
             <div className="flex items-center space-x-2">
+              {/* Langfuse 버튼 추가 */}
               <button
-                onClick={selectFolder}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-purple-500 text-white rounded hover:bg-purple-600 transition-colors text-sm"
-                title="작업 폴더 선택"
+                onClick={loadLangfusePrompts}
+                disabled={langfuseLoading}
+                className="flex items-center space-x-2 px-3 py-1.5 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition-colors text-sm"
+                title="Langfuse에서 불러오기"
               >
-                <FolderOpen size={16} />
-                <span>폴더 선택</span>
-              </button>
-
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileUpload}
-                accept=".md,.markdown"
-                className="hidden"
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-sm"
-              >
-                <Upload size={16} />
-                <span>가져오기</span>
+                <Cloud size={16} />
+                <span>{langfuseLoading ? '로딩...' : 'Langfuse 불러오기'}</span>
               </button>
 
               <button
-                onClick={() => saveToFileSystem('수동 저장')}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-sm"
-                disabled={!directoryHandle}
-                title={!directoryHandle ? '먼저 폴더를 선택하세요' : ''}
+                onClick={saveToLangfuse}
+                className="flex items-center space-x-2 px-3 py-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors text-sm"
+                title="Langfuse에 저장"
               >
-                <Save size={16} />
-                <span>저장</span>
+                <Cloud size={16} />
+                <span>Langfuse 저장</span>
               </button>
 
+              <div className="border-l border-gray-300 h-6 mx-1"></div>
+
               <button
-                onClick={downloadFile}
+                onClick={async () => {
+                  if (!currentPromptName) {
+                    alert('먼저 Langfuse 프롬프트를 불러오세요.');
+                    return;
+                  }
+                  // 버전 목록 로드 후 모달 표시
+                  await loadVersions(currentPromptName);
+                  setShowVersions(!showVersions);
+                }}
                 className="flex items-center space-x-2 px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm"
-              >
-                <Download size={16} />
-                <span>내보내기</span>
-              </button>
-
-              <button
-                onClick={() => setShowVersions(!showVersions)}
-                className="flex items-center space-x-2 px-3 py-1.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors text-sm"
+                disabled={!currentPromptName}
+                title={!currentPromptName ? '먼저 Langfuse 프롬프트를 불러오세요' : 'Langfuse 버전 관리'}
               >
                 <Clock size={16} />
-                <span>버전 ({versions.length})</span>
+                <span>버전 ({availableVersions.length})</span>
               </button>
             </div>
           </div>
 
-          <div className="text-sm text-gray-500">
-            {directoryHandle ? `📁 ${directoryHandle.name}` : '폴더를 선택하세요'}
+          <div className="flex items-center space-x-2">
+            {currentPromptName ? (
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-500">☁️ Langfuse: {currentPromptName}</span>
+                {currentPromptVersion && (
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowVersionsDropdown(!showVersionsDropdown)}
+                      className="flex items-center space-x-1 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 transition-colors"
+                    >
+                      <span>v{currentPromptVersion}</span>
+                      <ChevronDown size={12} />
+                    </button>
+                    {showVersionsDropdown && availableVersions.length > 0 && (
+                      <div className="absolute right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 w-64 max-h-96 overflow-y-auto">
+                        <div className="p-2 border-b border-gray-200 bg-gray-50">
+                          <div className="text-xs font-semibold text-gray-700">버전 선택</div>
+                        </div>
+                        {availableVersions.map((v) => (
+                          <button
+                            key={v.version}
+                            onClick={() => {
+                              loadFromLangfuse(currentPromptName, v.version);
+                              setShowVersionsDropdown(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 hover:bg-blue-50 transition-colors border-b border-gray-100 ${
+                              v.version === currentPromptVersion ? 'bg-blue-50 font-semibold' : ''
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm text-gray-800">v{v.version}</span>
+                              {v.version === currentPromptVersion && (
+                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">현재</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {new Date(v.timestamp).toLocaleString('ko-KR')}
+                            </div>
+                            {v.commitMessage && (
+                              <div className="text-xs text-gray-400 mt-1 truncate">
+                                {v.commitMessage}
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : directoryHandle ? (
+              <span className="text-sm text-gray-500">📁 {directoryHandle.name}</span>
+            ) : (
+              <span className="text-sm text-gray-500">파일을 불러오세요</span>
+            )}
           </div>
         </div>
       </div>
@@ -919,24 +1142,102 @@ const MarkdownTreeEditor = () => {
                       </div>
                     )
                   ) : (
-                    <textarea
-                      className={`w-full h-full p-4 border rounded text-sm resize-none focus:outline-none focus:ring-2 font-mono ${
-                        selectedNode.type === 'frontmatter'
-                          ? 'border-purple-300 focus:ring-purple-500 bg-purple-50'
-                          : 'border-gray-300 focus:ring-blue-500'
-                      }`}
-                      value={selectedNode.content}
-                      onChange={(e) => {
-                        const newContent = e.target.value;
-                        setSelectedNode({ ...selectedNode, content: newContent });
-                        updateNodeContent(selectedNode.id, newContent);
-                      }}
-                      placeholder={
-                        selectedNode.type === 'frontmatter'
-                          ? 'YAML 형식으로 메타데이터를 입력하세요...\n예:\ntitle: 문서 제목\nauthor: 작성자\ndate: 2024-01-01'
-                          : '마크다운 내용을 입력하세요...'
+                    (() => {
+                      const childNodes = collectChildNodes(selectedNode);
+
+                      if (childNodes.length === 0) {
+                        // 하위 노드가 없으면 전체를 편집 가능한 영역으로
+                        return (
+                          <textarea
+                            className={`w-full h-full p-4 border rounded text-sm resize-none focus:outline-none focus:ring-2 font-mono ${
+                              selectedNode.type === 'frontmatter'
+                                ? 'border-purple-300 focus:ring-purple-500 bg-purple-50'
+                                : 'border-gray-300 focus:ring-blue-500'
+                            }`}
+                            value={selectedNode.content}
+                            onChange={(e) => {
+                              const newContent = e.target.value;
+                              setSelectedNode({ ...selectedNode, content: newContent });
+                              updateNodeContent(selectedNode.id, newContent);
+                            }}
+                            placeholder={
+                              selectedNode.type === 'frontmatter'
+                                ? 'YAML 형식으로 메타데이터를 입력하세요...\n예:\ntitle: 문서 제목\nauthor: 작성자\ndate: 2024-01-01'
+                                : '마크다운 내용을 입력하세요...'
+                            }
+                          />
+                        );
+                      } else {
+                        // 하위 노드가 있으면 50:50 분할
+                        return (
+                          <div className="h-full flex flex-col">
+                            {/* 상위 50% - 편집 가능 */}
+                            <div className="h-1/2 flex flex-col border-b-2 border-gray-300">
+                              <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-200">
+                                <div className="text-xs font-semibold text-blue-700">
+                                  📝 현재 섹션 (편집 가능)
+                                </div>
+                              </div>
+                              <div className="flex-1 overflow-hidden p-4">
+                                <textarea
+                                  className={`w-full h-full p-4 border rounded text-sm resize-none focus:outline-none focus:ring-2 font-mono ${
+                                    selectedNode.type === 'frontmatter'
+                                      ? 'border-purple-300 focus:ring-purple-500 bg-purple-50'
+                                      : 'border-gray-300 focus:ring-blue-500'
+                                  }`}
+                                  value={selectedNode.content}
+                                  onChange={(e) => {
+                                    const newContent = e.target.value;
+                                    setSelectedNode({ ...selectedNode, content: newContent });
+                                    updateNodeContent(selectedNode.id, newContent);
+                                  }}
+                                  placeholder={
+                                    selectedNode.type === 'frontmatter'
+                                      ? 'YAML 형식으로 메타데이터를 입력하세요...\n예:\ntitle: 문서 제목\nauthor: 작성자\ndate: 2024-01-01'
+                                      : '마크다운 내용을 입력하세요...'
+                                  }
+                                />
+                              </div>
+                            </div>
+
+                            {/* 하위 50% - Read-only */}
+                            <div className="h-1/2 flex flex-col">
+                              <div className="flex items-center justify-between px-4 py-2 bg-gray-100 border-b border-gray-200">
+                                <div className="text-xs font-semibold text-gray-700">
+                                  👁️ 하위 섹션 ({childNodes.length}개)
+                                </div>
+                                <div className="text-xs text-gray-500">Read-only</div>
+                              </div>
+                              <div className="flex-1 overflow-y-auto p-4">
+                                <div className="space-y-4">
+                                  {childNodes.map((child) => (
+                                    <div key={child.id} className="relative">
+                                      <div className="flex items-center justify-between mb-2 px-1">
+                                        <div className="text-xs font-semibold text-gray-700">
+                                          {child.title}
+                                          {child.level > 0 && (
+                                            <span className="ml-2 text-gray-400">
+                                              (H{child.level + HEADING_START_LEVEL - 1})
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <textarea
+                                        className="w-full p-4 border border-gray-200 rounded text-sm resize-none font-mono bg-gray-50 text-gray-700 cursor-not-allowed"
+                                        value={child.content}
+                                        readOnly
+                                        rows={Math.min(10, Math.max(3, child.content.split('\n').length))}
+                                        placeholder="내용 없음"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
                       }
-                    />
+                    })()
                   )}
                 </div>
               </>
@@ -984,12 +1285,18 @@ const MarkdownTreeEditor = () => {
         </div>
       </div>
 
-      {/* Version History Modal */}
+      {/* Langfuse Version History Modal */}
       {showVersions && (
         <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-2/3 max-h-2/3 overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-bold">버전 히스토리</h3>
+              <div className="flex items-center space-x-2">
+                <Cloud size={20} className="text-indigo-600" />
+                <h3 className="text-lg font-bold">Langfuse 버전 히스토리</h3>
+                {currentPromptName && (
+                  <span className="text-sm text-gray-500">({currentPromptName})</span>
+                )}
+              </div>
               <button
                 onClick={() => setShowVersions(false)}
                 className="text-gray-500 hover:text-gray-700 text-xl"
@@ -998,43 +1305,114 @@ const MarkdownTreeEditor = () => {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-6">
-              {versions.slice().reverse().map((version, index) => {
-                const isLatest = index === 0;
-                return (
-                  <div key={version.id} className="mb-4 pb-4 border-b border-gray-200 last:border-0">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <div className="font-semibold text-gray-800">버전 {version.id}</div>
-                          {isLatest && (
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
-                              현재
-                            </span>
+              {availableVersions.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">
+                  <Clock size={48} className="mx-auto mb-4 opacity-50" />
+                  <p>버전 히스토리가 없습니다.</p>
+                  <p className="text-sm mt-2">프롬프트를 불러온 후 버전을 확인할 수 있습니다.</p>
+                </div>
+              ) : (
+                availableVersions.map((version) => {
+                  const isCurrent = version.version === currentPromptVersion;
+                  return (
+                    <div key={version.version} className="mb-4 pb-4 border-b border-gray-200 last:border-0">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <div className="font-semibold text-gray-800">버전 {version.version}</div>
+                            {isCurrent && (
+                              <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
+                                현재
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {new Date(version.timestamp).toLocaleString('ko-KR')}
+                          </div>
+                          {version.commitMessage && (
+                            <div className="text-sm text-gray-600 mt-2">
+                              {version.commitMessage}
+                            </div>
                           )}
                         </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {new Date(version.timestamp).toLocaleString('ko-KR')}
-                        </div>
-                        {version.filePath && (
-                          <div className="text-xs text-gray-400 mt-1">
-                            📁 {version.filePath}
-                          </div>
+                        {!isCurrent && (
+                          <button
+                            onClick={() => {
+                              loadFromLangfuse(currentPromptName, version.version);
+                              setShowVersions(false);
+                            }}
+                            className="flex items-center space-x-1 px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+                          >
+                            <RotateCcw size={14} />
+                            <span>불러오기</span>
+                          </button>
                         )}
                       </div>
-                      {!isLatest && version.filePath && (
-                        <button
-                          onClick={() => restoreVersion(version)}
-                          className="flex items-center space-x-1 px-3 py-1.5 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
-                        >
-                          <RotateCcw size={14} />
-                          <span>복구</span>
-                        </button>
-                      )}
                     </div>
-                    <div className="text-sm text-gray-600">{version.description}</div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Langfuse Prompts Modal */}
+      {showLangfuseModal && (
+        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-2/3 max-h-2/3 overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Cloud size={20} className="text-indigo-600" />
+                <h3 className="text-lg font-bold">Langfuse 프롬프트 불러오기</h3>
+              </div>
+              <button
+                onClick={() => setShowLangfuseModal(false)}
+                className="text-gray-500 hover:text-gray-700 text-xl"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              {langfusePrompts.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">
+                  <Cloud size={48} className="mx-auto mb-4 opacity-50" />
+                  <p>프롬프트가 없습니다.</p>
+                  <p className="text-sm mt-2">Langfuse에 프롬프트를 먼저 저장하세요.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {langfusePrompts.map((prompt) => (
+                    <button
+                      key={prompt.name}
+                      onClick={() => loadFromLangfuse(prompt.name)}
+                      className="w-full text-left p-4 border border-gray-200 rounded-lg hover:bg-indigo-50 hover:border-indigo-300 transition-colors"
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="font-semibold text-gray-800">{prompt.name}</div>
+                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                          v{prompt.version}
+                        </span>
+                      </div>
+                      {prompt.labels && prompt.labels.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-1">
+                          {prompt.labels.map((label) => (
+                            <span
+                              key={label}
+                              className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded"
+                            >
+                              {label}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-500">
+                        {new Date(prompt.lastUpdated).toLocaleString('ko-KR')}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
