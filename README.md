@@ -124,8 +124,11 @@ VITE_PORT=3000
 # API 서버 포트 (기본값: 3001)
 API_PORT=3001
 
-# 클라이언트에서 접근할 API URL
-VITE_API_URL=http://localhost:3001
+# 클라이언트가 사용할 API 포트 (VITE_ 접두사 필수, API_PORT와 동일하게 설정)
+VITE_API_PORT=3001
+
+# 클라이언트에서 접근할 API URL (선택사항, 설정하면 위 설정 무시)
+# VITE_API_URL=http://localhost:3001
 
 # ====== CORS 보안 설정 ======
 # 개발 환경: 비워두면 로컬 네트워크 자동 허용 (권장)
@@ -142,7 +145,8 @@ LANGFUSE_HOST=https://cloud.langfuse.com
 **포트 변경하기:**
 - `VITE_PORT`: 프론트엔드 개발 서버 포트를 변경하려면 이 값을 수정하세요
 - `API_PORT`: 백엔드 API 서버 포트를 변경하려면 이 값을 수정하세요
-- `VITE_API_URL`: API 포트를 변경했다면 이 URL도 함께 업데이트하세요
+- `VITE_API_PORT`: API_PORT와 동일한 값으로 설정하세요 (클라이언트가 API 서버에 접속할 때 사용)
+- `VITE_API_URL`: (선택사항) 전체 API URL을 명시적으로 설정하려면 주석을 해제하고 사용하세요
 
 **CORS 보안 설정:**
 - **개발 환경**: `ALLOWED_ORIGINS`를 비워두면 localhost와 로컬 네트워크(192.168.x.x, 10.x.x.x)가 자동으로 허용됩니다
