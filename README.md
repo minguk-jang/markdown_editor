@@ -1,6 +1,6 @@
-# Markdown Tree Editor
+# SPICA Skill Collector
 
-트리 구조로 마크다운 문서를 편집하고 관리하는 웹 애플리케이션입니다.
+Langfuse를 활용하여 AI 스킬을 트리 구조로 편집하고 관리하는 웹 애플리케이션입니다.
 
 ## 주요 기능
 
@@ -100,27 +100,72 @@
 
 ## 시작하기
 
-### 설치
+### 1. 설치
 
 ```bash
 npm install
 ```
 
-### 개발 서버 실행
+### 2. 환경 변수 설정
+
+`.env.example` 파일을 복사하여 `.env` 파일을 생성하세요:
 
 ```bash
-npm run dev
+cp .env.example .env
 ```
 
-브라우저에서 http://localhost:3000 접속
+그런 다음 `.env` 파일을 열어 필요한 값을 설정하세요:
 
-### 프로덕션 빌드
+```bash
+# ====== 서버 포트 설정 ======
+# Vite 개발 서버 포트 (기본값: 3000)
+VITE_PORT=3000
+
+# API 서버 포트 (기본값: 3001)
+API_PORT=3001
+
+# 클라이언트에서 접근할 API URL
+VITE_API_URL=http://localhost:3001
+
+# ====== Langfuse Configuration ======
+# Langfuse 대시보드(https://cloud.langfuse.com)에서 API 키를 발급받으세요
+LANGFUSE_PUBLIC_KEY=your-public-key-here
+LANGFUSE_SECRET_KEY=your-secret-key-here
+LANGFUSE_HOST=https://cloud.langfuse.com
+```
+
+**포트 변경하기:**
+- `VITE_PORT`: 프론트엔드 개발 서버 포트를 변경하려면 이 값을 수정하세요
+- `API_PORT`: 백엔드 API 서버 포트를 변경하려면 이 값을 수정하세요
+- `VITE_API_URL`: API 포트를 변경했다면 이 URL도 함께 업데이트하세요
+
+### 3. 개발 서버 실행
+
+프론트엔드와 백엔드를 동시에 실행:
+
+```bash
+npm run dev:all
+```
+
+또는 개별적으로 실행:
+
+```bash
+# 프론트엔드만 실행 (Vite)
+npm run dev
+
+# 백엔드만 실행 (API 서버)
+npm run server:dev
+```
+
+브라우저에서 `http://localhost:3000` 접속 (또는 설정한 VITE_PORT)
+
+### 4. 프로덕션 빌드
 
 ```bash
 npm run build
 ```
 
-### 빌드 미리보기
+### 5. 빌드 미리보기
 
 ```bash
 npm run preview
