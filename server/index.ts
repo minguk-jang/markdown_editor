@@ -56,13 +56,36 @@ console.log(`  API_PORT: ${process.env.API_PORT || 3001}`);
 const app = express();
 const PORT = process.env.API_PORT || 3001;
 
-// 미들웨어
-app.use(cors({
-  origin: true, // 모든 origin 허용 (외부 네트워크 접속 지원)
+// CORS 설정 - 환경 변수로 origin 제어 (보안)
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : []; // 프로덕션에서는 명시적으로 설정
+
+const corsOptions = {
+  origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+    // 개발 환경: origin이 없거나 (같은 호스트) allowedOrigins가 비어있으면 모두 허용
+    if (!origin || allowedOrigins.length === 0) {
+      callback(null, true);
+    } else if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      // 개발 편의를 위해 로컬 네트워크는 허용 (192.168.x.x, 10.x.x.x, localhost)
+      const isLocalNetwork = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/.test(origin);
+      if (isLocalNetwork) {
+        callback(null, true);
+      } else {
+        console.warn(`⚠️  CORS blocked origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
-}));
+};
+
+// 미들웨어
+app.use(cors(corsOptions));
 app.use(express.json()); // JSON 파싱
 
 /**

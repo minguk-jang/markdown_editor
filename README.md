@@ -127,6 +127,11 @@ API_PORT=3001
 # 클라이언트에서 접근할 API URL
 VITE_API_URL=http://localhost:3001
 
+# ====== CORS 보안 설정 ======
+# 개발 환경: 비워두면 로컬 네트워크 자동 허용 (권장)
+# 프로덕션: 명시적으로 허용할 도메인 설정
+ALLOWED_ORIGINS=
+
 # ====== Langfuse Configuration ======
 # Langfuse 대시보드(https://cloud.langfuse.com)에서 API 키를 발급받으세요
 LANGFUSE_PUBLIC_KEY=your-public-key-here
@@ -138,6 +143,13 @@ LANGFUSE_HOST=https://cloud.langfuse.com
 - `VITE_PORT`: 프론트엔드 개발 서버 포트를 변경하려면 이 값을 수정하세요
 - `API_PORT`: 백엔드 API 서버 포트를 변경하려면 이 값을 수정하세요
 - `VITE_API_URL`: API 포트를 변경했다면 이 URL도 함께 업데이트하세요
+
+**CORS 보안 설정:**
+- **개발 환경**: `ALLOWED_ORIGINS`를 비워두면 localhost와 로컬 네트워크(192.168.x.x, 10.x.x.x)가 자동으로 허용됩니다
+- **프로덕션 환경**: 보안을 위해 명시적으로 허용할 도메인을 설정하세요
+  ```bash
+  ALLOWED_ORIGINS=https://yourdomain.com,https://app.yourdomain.com
+  ```
 
 ### 3. 개발 서버 실행
 
