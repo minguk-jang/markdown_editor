@@ -238,6 +238,43 @@ const MarkdownTreeEditor = () => {
     }
   };
 
+  // 새 skill 생성
+  const createNewSkill = () => {
+    // 오늘 날짜를 YYYYMMDD 형식으로
+    const today = new Date();
+    const dateStr = today.getFullYear() +
+      String(today.getMonth() + 1).padStart(2, '0') +
+      String(today.getDate()).padStart(2, '0');
+
+    const skillName = `spica-skills/untitled_${dateStr}`;
+
+    // 기본 템플릿
+    const template = `# 새 스킬
+
+여기에 스킬 설명을 작성하세요.
+
+## 사용 방법
+
+1. 첫 번째 단계
+2. 두 번째 단계
+3. 세 번째 단계
+
+## 예시
+
+\`\`\`
+코드 예시
+\`\`\`
+`;
+
+    // 마크다운 파싱
+    parseMarkdown(template, `${skillName}.md`);
+    setCurrentPromptName(skillName);
+    setCurrentPromptVersion(null);
+    setAvailableVersions([]);
+
+    console.log(`✨ 새 스킬 생성: ${skillName}`);
+  };
+
   // ========== 기존 함수들 ==========
 
   // 폴더 선택
@@ -927,6 +964,16 @@ const MarkdownTreeEditor = () => {
             <h1 className="text-xl font-bold text-gray-800">SPICA Skill Collector</h1>
 
             <div className="flex items-center space-x-2">
+              {/* 새 skill 생성 버튼 */}
+              <button
+                onClick={createNewSkill}
+                className="flex items-center space-x-2 px-3 py-1.5 bg-green-500 text-white rounded hover:bg-green-600 transition-colors text-sm"
+                title="새 skill 생성"
+              >
+                <Plus size={16} />
+                <span>새 skill 생성</span>
+              </button>
+
               {/* Langfuse 버튼 추가 */}
               <button
                 onClick={loadLangfusePrompts}
