@@ -3,7 +3,8 @@ import { ChevronRight, ChevronDown, FileText, Download, Upload, Plus, Trash2, Cl
 
 // ====== 설정 (쉽게 변경 가능) ======
 const HEADING_START_LEVEL = 2; // 마크다운 헤딩 시작 레벨 (1 = H1(#), 2 = H2(##))
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+// 동적으로 현재 호스트 감지 (다른 컴퓨터에서 접속 시에도 작동)
+const API_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:3001`;
 // =====================================
 
 const MarkdownTreeEditor = () => {
