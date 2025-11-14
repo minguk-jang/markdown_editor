@@ -294,7 +294,7 @@ export async function deletePrompt(name: string): Promise<boolean> {
 
 /**
  * 프롬프트 버전 히스토리 가져오기
- * Langfuse에서 같은 이름의 모든 프롬프트 버전을 가져옵니다
+ * Langfuse에서 특정 프롬프트의 모든 버전을 가져옵니다
  * @param name 프롬프트 이름
  * @returns 버전 목록
  */
@@ -310,61 +310,63 @@ export async function getPromptVersions(
 
     console.log(`📋 버전 목록 가져오기: ${name}`);
 
-    // Langfuse API에서 모든 프롬프트 목록을 가져온 다음 필터링
-    let allPrompts: any[] = [];
-    let page = 1;
-    const limit = 50;
-    let hasMore = true;
+    // 먼저 최신 버전(production)을 가져와서 최대 버전 번호 확인
+    const latestUrl = new URL(`${baseUrl}/api/public/v2/prompts/${encodeURIComponent(name)}`);
+    latestUrl.searchParams.append('label', 'production');
 
-    while (hasMore) {
-      const url = new URL(`${baseUrl}/api/public/v2/prompts`);
-      url.searchParams.append('page', page.toString());
-      url.searchParams.append('limit', limit.toString());
+    const latestResponse = await fetch(latestUrl.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Basic ${auth}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
-      const response = await fetch(url.toString(), {
-        method: 'GET',
-        headers: {
-          Authorization: `Basic ${auth}`,
-          'Content-Type': 'application/json',
-        },
-      });
+    if (!latestResponse.ok) {
+      console.error(`최신 버전 조회 실패: ${latestResponse.status}`);
+      return [];
+    }
 
-      if (!response.ok) {
-        throw new Error(`API 요청 실패: ${response.status}`);
-      }
+    const latestPrompt = await latestResponse.json();
+    const maxVersion = latestPrompt.version || 1;
 
-      const data = await response.json();
-      const pageData = data.data || [];
+    console.log(`📊 최대 버전: v${maxVersion}`);
 
-      allPrompts = allPrompts.concat(pageData);
+    // 버전 1부터 maxVersion까지 각각 조회
+    const versions: Array<{ version: number; timestamp: string; commitMessage?: string }> = [];
 
-      // 더 이상 데이터가 없거나 원하는 프롬프트를 찾았으면 종료
-      if (pageData.length < limit) {
-        hasMore = false;
-      } else {
-        page++;
-      }
+    for (let v = 1; v <= maxVersion; v++) {
+      try {
+        const versionUrl = new URL(`${baseUrl}/api/public/v2/prompts/${encodeURIComponent(name)}`);
+        versionUrl.searchParams.append('version', v.toString());
 
-      // 무한 루프 방지 (최대 10페이지)
-      if (page > 10) {
-        break;
+        const versionResponse = await fetch(versionUrl.toString(), {
+          method: 'GET',
+          headers: {
+            Authorization: `Basic ${auth}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (versionResponse.ok) {
+          const versionPrompt = await versionResponse.json();
+          versions.push({
+            version: versionPrompt.version || v,
+            timestamp: versionPrompt.updatedAt || versionPrompt.createdAt || new Date().toISOString(),
+            commitMessage: versionPrompt.config?.commitMessage || '',
+          });
+        } else {
+          console.warn(`버전 ${v} 조회 실패: ${versionResponse.status}`);
+        }
+      } catch (error) {
+        console.warn(`버전 ${v} 조회 중 오류:`, error);
       }
     }
 
-    // 같은 이름의 프롬프트만 필터링
-    const matchingPrompts = allPrompts.filter((item: any) => item.name === name);
-
-    console.log(`✅ ${name}의 버전 ${matchingPrompts.length}개 찾음`);
-
-    // 버전 정보 추출 및 정렬
-    const versions = matchingPrompts.map((item: any) => ({
-      version: item.version || 1,
-      timestamp: item.updatedAt || item.createdAt || new Date().toISOString(),
-      commitMessage: item.config?.commitMessage || '',
-    }));
+    console.log(`✅ ${name}의 버전 ${versions.length}개 찾음 (v1 ~ v${maxVersion})`);
 
     // 버전 순으로 정렬 (최신 먼저)
-    return versions.sort((a: any, b: any) => b.version - a.version);
+    return versions.sort((a, b) => b.version - a.version);
   } catch (error) {
     console.error('버전 히스토리 조회 실패:', error);
     return [];
