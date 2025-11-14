@@ -37,6 +37,10 @@ const MarkdownTreeEditor = () => {
   const [showVersionsDropdown, setShowVersionsDropdown] = useState(false);
   const [showHelpPopup, setShowHelpPopup] = useState(false);
 
+  // 리사이즈 관련 상태
+  const [sidebarWidth, setSidebarWidth] = useState(320); // 초기 너비 320px (w-80 = 20rem = 320px)
+  const [isResizing, setIsResizing] = useState(false);
+
   // example.md 로드
   useEffect(() => {
     fetch('/example.md')
@@ -44,6 +48,33 @@ const MarkdownTreeEditor = () => {
       .then(text => setGuideContent(text))
       .catch(err => console.error('가이드 파일 로드 실패:', err));
   }, []);
+
+  // 리사이즈 핸들러
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing) return;
+
+      const newWidth = e.clientX;
+      // 최소 200px, 최대 600px로 제한
+      if (newWidth >= 200 && newWidth <= 600) {
+        setSidebarWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
 
   // 초기 빈 데이터 구조
   const [data, setData] = useState({
@@ -1097,7 +1128,10 @@ const MarkdownTreeEditor = () => {
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar - Tree */}
-        <div className="w-80 bg-white border-r border-gray-200 overflow-y-auto">
+        <div
+          className="bg-white border-r border-gray-200 overflow-y-auto flex-shrink-0 relative"
+          style={{ width: `${sidebarWidth}px` }}
+        >
           <div className="p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -1112,6 +1146,14 @@ const MarkdownTreeEditor = () => {
               </button>
             </div>
             {renderTree(data)}
+          </div>
+
+          {/* 리사이즈 핸들 */}
+          <div
+            className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-indigo-500 hover:w-1.5 transition-all z-10 group"
+            onMouseDown={() => setIsResizing(true)}
+          >
+            <div className="absolute top-1/2 -translate-y-1/2 right-0 w-1 h-16 bg-gray-300 rounded-full group-hover:bg-indigo-500 transition-colors"></div>
           </div>
         </div>
 
@@ -1401,32 +1443,36 @@ const MarkdownTreeEditor = () => {
           </div>
 
           {/* Guide Section */}
-          <div className={`border-t-2 border-gray-300 bg-gradient-to-b from-blue-50 to-gray-50 flex flex-col ${showGuide ? 'h-2/5' : 'h-auto'} transition-all duration-300`}>
+          <div className={`border-t-2 border-gray-300 bg-gradient-to-b from-indigo-50 to-gray-50 flex flex-col ${showGuide ? 'h-2/5' : 'h-auto'} transition-all duration-300`}>
             {/* Guide Header */}
             <div
-              className="flex items-center justify-between px-6 py-3 bg-blue-100 border-b border-blue-200 cursor-pointer hover:bg-blue-150"
+              className="flex items-center justify-between px-6 py-3 bg-indigo-100 border-b border-indigo-200 cursor-pointer hover:bg-indigo-150"
               onClick={() => setShowGuide(!showGuide)}
             >
               <div className="flex items-center space-x-2">
-                <BookOpen size={18} className="text-blue-600" />
-                <h3 className="font-semibold text-blue-900">📖 마크다운 사용 가이드</h3>
-                <span className="text-xs text-blue-600 bg-blue-200 px-2 py-0.5 rounded">참고용</span>
+                <Sparkles size={18} className="text-indigo-600" />
+                <h3 className="font-semibold text-indigo-900">✨ Skill 예시</h3>
+                <span className="text-xs text-indigo-600 bg-indigo-200 px-2 py-0.5 rounded">참고용</span>
               </div>
-              <button className="text-blue-600 hover:text-blue-800 transition-colors">
+              <button className="text-indigo-600 hover:text-indigo-800 transition-colors">
                 {showGuide ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
               </button>
             </div>
 
-            {/* Guide Content */}
+            {/* Guide Content - Raw Markdown */}
             {showGuide && (
-              <div className="flex-1 overflow-y-auto px-8 py-6">
-                <div className="prose prose-sm max-w-none bg-white p-6 rounded-lg shadow-sm">
-                  {guideContent ? renderMarkdown(guideContent) : (
+              <div className="flex-1 overflow-hidden p-4">
+                {guideContent ? (
+                  <pre className="h-full bg-gray-900 text-gray-100 p-6 rounded-lg overflow-auto font-mono text-sm leading-relaxed shadow-lg">
+                    <code>{guideContent}</code>
+                  </pre>
+                ) : (
+                  <div className="h-full flex items-center justify-center bg-white rounded-lg">
                     <div className="text-center text-gray-400">
                       <p>가이드 파일을 로드하는 중...</p>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
