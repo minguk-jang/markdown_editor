@@ -287,9 +287,10 @@ app.use((err: Error, req: Request, res: Response, next: any) => {
 });
 
 // 서버 시작
-const server = app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🚀 Langfuse Prompts API 서버 실행 중`);
   console.log(`📍 http://localhost:${PORT}`);
+  console.log(`📍 외부 접속: http://<your-ip>:${PORT}`);
   console.log(`✅ Langfuse 설정: ${isConfigured() ? '완료' : '필요'}`);
   console.log(`\n사용 가능한 엔드포인트:`);
   console.log(`  GET    /api/health - 헬스 체크`);

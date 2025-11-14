@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
+      host: '0.0.0.0', // 외부 접속 허용
       port: parseInt(env.VITE_PORT) || 3000
     }
   }
